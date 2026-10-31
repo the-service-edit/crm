@@ -449,11 +449,11 @@ async function boot(){
   if(!window.supabase){ $('.main').innerHTML='<div class="wrap"><div class="panel"><h2>Could not load</h2><p style="margin:0;color:var(--ink-2)">Check your connection and reload.</p></div></div>'; return; }
   sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'tse-crm-auth'}});
   const {data}=await sb.auth.getSession();
-  sb.auth.onAuthStateChange((ev,session)=>{ const was=user&&user.id; user=session?session.user:null; if(user && user.id!==was) start(); if(!user){ stop(); renderAuth(); } });
-  if(data.session){ user=data.session.user; start(); } else renderAuth();
+  sb.auth.onAuthStateChange((ev,session)=>{ if(ev==='PASSWORD_RECOVERY'){ recovering=true; user=session&&session.user; renderAuth('recover'); return; } if(recovering) return; const was=user&&user.id; user=session?session.user:null; if(user && user.id!==was) start(); if(!user){ stop(); renderAuth(); } });
+  if(recovering){ renderAuth('recover'); } else if(data.session){ user=data.session.user; start(); } else renderAuth();
   if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 }
-let channel=null;
+let channel=null, recovering=/type=recovery/.test(location.hash);
 async function start(){
   $('#app').innerHTML='<main class="main" style="grid-column:1/-1"><div class="wrap"><div class="panel">Loading your leads…</div></div></main>';
   const {data:own,error:oe}=await sb.rpc('claim_crm_owner');
@@ -484,6 +484,7 @@ function applyChange(t,p){
 }
 function renderAuth(mode){
   const locked=mode==='locked';
+  if(mode==='recover'){ $('#app').innerHTML=`<div class="auth" style="grid-column:1/-1"><div class="band"><div class="in"><div style="display:flex;justify-content:flex-end">${LOGO_SVG}</div><h1>Set a new password.</h1><p>Choose a password of at least 8 characters. You will use it to sign in on every device.</p></div></div><form id="auth-form" novalidate><input id="au-email" type="hidden" value="x"><label class="label" for="au-pw">New password</label><input id="au-pw" type="password" autocomplete="new-password" minlength="8" required><button class="btn primary" style="justify-content:center;padding:12px" data-auth="newpw">Save password</button><div id="au-msg" role="status"></div></form></div>`; return; }
   $('#app').innerHTML=`<div class="auth" style="grid-column:1/-1"><div class="band"><div class="in"><div style="display:flex;justify-content:space-between;align-items:center;gap:16px"><small style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#D9D1C2">Private · Leads CRM</small>${LOGO_SVG}</div>
     <h1>${locked?'This account has no access.':'The Service Edit, every lead in one place.'}</h1>
     <p>${locked?'Only the owner account for hello@theserviceedit.com can open this CRM. Sign out and sign in with that address.':'Sign in with hello@theserviceedit.com. First time here? Create your password, confirm the email we send, then sign in.'}</p></div></div>
@@ -502,10 +503,11 @@ document.addEventListener('click',async e=>{
   if(!email) return msg('<span class="err">Enter your email.</span>');
   if(k==='reset'){ const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}); return msg(error?`<span class="err">${esc(error.message)}</span>`:'<span class="ok">Check your inbox for a reset link.</span>'); }
   if(pw.length<8) return msg('<span class="err">Use at least 8 characters.</span>');
-  if(k==='up'){ const {data,error}=await sb.auth.signUp({email,password:pw,options:{emailRedirectTo:location.origin+location.pathname}}); return msg(error?`<span class="err">${esc(error.message)}</span>`:data.session?'<span class="ok">Account created.</span>':'<span class="ok">Done. Open the confirmation email we just sent, then come back and sign in.</span>'); }
+  if(k==='up'){ const {data,error}=await sb.auth.signUp({email,password:pw,options:{emailRedirectTo:location.origin+location.pathname}}); if(error) return msg(`<span class="err">${esc(error.message)}</span>`); if(data.user && Array.isArray(data.user.identities) && data.user.identities.length===0) return msg('<span class="err">You already have an account with this email (from your planner apps). Sign in with that password, or tap Forgot password.</span>'); return msg(data.session?'<span class="ok">Account created.</span>':'<span class="ok">Done. Open the confirmation email we just sent, then come back and sign in.</span>'); }
+  if(k==='newpw'){ const {error}=await sb.auth.updateUser({password:pw}); if(error) return msg(`<span class="err">${esc(error.message)}</span>`); recovering=false; msg('<span class="ok">Password saved.</span>'); start(); return; }
   if(k==='in'){ b.disabled=true; const {error}=await sb.auth.signInWithPassword({email,password:pw}); b.disabled=false; if(error) msg(`<span class="err">${/confirm/i.test(error.message)?'Confirm your email first: open the link we sent you.':'Wrong email or password.'}</span>`); }
 });
-document.addEventListener('submit',e=>{ if(e.target.id==='auth-form'){ e.preventDefault(); const b=document.querySelector('[data-auth="in"]'); if(b) b.click(); } },true);
+document.addEventListener('submit',e=>{ if(e.target.id==='auth-form'){ e.preventDefault(); const b=document.querySelector('[data-auth="in"],[data-auth="newpw"]'); if(b) b.click(); } },true);
 /* ---------- render scheduling (never wipe a form you are typing in) ---------- */
 let pending=false;
 function isTyping(){ const a=document.activeElement; if(document.querySelector('form[data-dirty="1"]')) return true; return !!(a && a.closest && a.closest('#app,.drawer,.modal') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type!=='checkbox' && a.type!=='file'); }
