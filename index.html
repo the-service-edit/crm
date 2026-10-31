@@ -692,7 +692,9 @@ function viewBoard(p){
   const head=`<div class="head"><div><h1>${p==='email'?'Email marketing':'Website'} pipeline</h1><p>${open.length} open · ${val}${gstNote()}</p></div>
     <div class="actions"><span class="seg"><button data-act="bmode" data-m="board" class="${S.boardMode==='board'?'on':''}">Board</button><button data-act="bmode" data-m="table" class="${S.boardMode==='table'?'on':''}">Table</button></span><button class="btn primary" data-act="add-lead" data-p="${p}">+ New lead</button></div></div>${filterBar(false)}`;
   if(S.boardMode==='table') return head+oppTable(os,p);
-  return head+`<div class="board-wrap" data-keep="board-${p}"><div class="board">${st.map(s=>{
+  const shown=S.showEmpty?st:st.filter(x=>os.some(o=>o.stage===x));
+  const hidden=st.length-shown.length;
+  return head+`${hidden||S.showEmpty?`<div style="display:flex;justify-content:flex-end;margin-top:-8px"><button class="btn sm ghost" data-act="toggle-empty">${S.showEmpty?'Hide empty stages':'Show '+hidden+' empty stage'+(hidden===1?'':'s')}</button></div>`:''}<div class="board-wrap" data-keep="board-${p}"><div class="board">${(shown.length?shown:st).map(s=>{
     const inS=os.filter(o=>o.stage===s).sort((a,b)=>(ROLE_RANK[b.priority==='high'?1:0])-(a.priority==='high'?1:0)||(b.updatedAt||'').localeCompare(a.updatedAt||''));
     const sum=p==='email'?inS.reduce((t,o)=>t+(+o.mrr||0),0):inS.reduce((t,o)=>t+(+o.value||0),0);
     return `<section class="colk${inS.length?'':' empty'}" data-stage="${esc(s)}" data-pipe="${p}"><div class="colk-h"><b>${esc(s)}</b><span class="mono">${inS.length}${sum?' · '+money(sum):''}</span></div><div class="colk-b" data-keep="col-${p}-${slug(s)}">${inS.map(o=>cardHtml(o)).join('')||'<div class="empty" style="padding:6px 4px">Empty</div>'}</div></section>`;
@@ -978,6 +980,7 @@ document.addEventListener('click', async e=>{
     case 'tasktab': S.taskTab=el.dataset.k; render(); break;
     case 'hpipe': S.boardPipe=el.dataset.p; render(); break;
     case 'bmode': S.boardMode=el.dataset.m; render(); break;
+    case 'toggle-empty': S.showEmpty=!S.showEmpty; render(); break;
     case 'fkind': S.fileKind=el.dataset.k; render(); break;
     case 'sort': S.sort=el.dataset.k; render(); break;
     case 'expand': S.expanded[id]=!S.expanded[id]; render(); renderOverlay(); break;
