@@ -159,6 +159,8 @@ a{color:inherit}
 .card .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .card .name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:var(--ink-3);font-size:12px}
+.tel{color:var(--ink);font-weight:500;text-decoration:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tel:hover{text-decoration:underline}
 .card .meta a{color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
 .card .val{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
 .card.email{border-left:4px solid var(--email)} .card.web{border-left:4px solid var(--web)}
@@ -633,7 +635,7 @@ function todayRows(tab,items){
     if(tab==='replies'){ const {c,i}=it; return `<div class="row click" data-act="open" data-id="${c._id}"><div style="min-width:0"><div class="t">${esc(c.name)}</div><div class="sub">Replied ${fmtDay(i.at)} · ${esc(i.subject||i.body||'')}</div></div><span class="pill ${i.outcome==='interested'?'p-good':'p-warn'}">${esc(i.outcome||'Reply')}</span></div>`; }
     if(tab==='waiting'||tab==='nudges'||tab==='calls'){ const {o,last}=it; const d=ageDays(last.at); return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(o.companyId))} ${pipePill(o.pipeline)}</div><div class="sub">Sent ${fmtDay(last.at)} · ${esc(last.subject||'')}</div></div><span class="pill ${d>=setting('callDays')?'p-bad':d>=setting('nudgeDays')?'p-warn':'p-plain'}">${d}d · ${d>=setting('callDays')?'Call':d>=setting('nudgeDays')?'Nudge':'Wait'}</span></div>`; }
     const o=it; const c=S.companies[o.companyId]||{}; const od=o.nextFollowUp&&o.nextFollowUp<today();
-    return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t"><span class="pri pri-${o.priority||'normal'}"></span> ${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${esc(o.nextAction||o.stage)}${c.phone?' · '+esc(c.phone):''}${c.city?' · '+esc(c.city):''}</div></div><span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${o.nextFollowUp?fmtRel(o.nextFollowUp):'No date'}</span></div>`;
+    return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t"><span class="pri pri-${o.priority||'normal'}"></span> ${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${esc(o.nextAction||o.stage)}${c.phone?' · '+phoneLink(c,'tel'):''}${c.city?' · '+esc(c.city):''}</div></div><span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${o.nextFollowUp?fmtRel(o.nextFollowUp):'No date'}</span></div>`;
   }).join('');
 }
 const href = u => /^https?:/i.test(u||'') ? u : 'https://'+String(u||'').replace(/^\/+/,'');
@@ -642,6 +644,10 @@ function linkBtns(c){ const os=oppsOf(c._id); const out=[];
   if(c.website) out.push(`<a class="btn sm ghost" href="${esc(href(c.website))}" target="_blank" rel="noopener" data-stop>Site</a>`);
   if(c.instagram) out.push(`<a class="btn sm ghost" href="${esc(/^https?:/.test(c.instagram)?c.instagram:'https://instagram.com/'+c.instagram.replace('@',''))}" target="_blank" rel="noopener" data-stop>IG</a>`);
   return out.length?`<div style="display:flex;gap:6px;flex-wrap:wrap">${out.join('')}</div>`:'—'; }
+const TZ={WA:'Australia/Perth',NT:'Australia/Darwin',SA:'Australia/Adelaide',QLD:'Australia/Brisbane',NSW:'Australia/Sydney',ACT:'Australia/Sydney',VIC:'Australia/Melbourne',TAS:'Australia/Hobart'};
+function theirTime(c){ const z=TZ[String(c.state||'').toUpperCase()]; if(!z) return ''; try{ return new Date().toLocaleTimeString('en-AU',{timeZone:z,hour:'numeric',minute:'2-digit'}).replace(' ','').toLowerCase()+' their time'; }catch(_){ return ''; } }
+const telHref = p => 'tel:'+String(p||'').replace(/[^0-9+]/g,'');
+function phoneLink(c,cls){ return c.phone?`<a class="${cls||''}" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a>`:''; }
 const pipePill = p => p==='web' ? '<span class="pill p-web">Web</span>' : '<span class="pill p-email">Email</span>';
 function weeklyBars(){
   const weeks=[]; const d=new Date(); d.setHours(12); d.setDate(d.getDate()-((d.getDay()+6)%7));
@@ -698,6 +704,7 @@ function cardHtml(o){
   return `<article class="card ${o.pipeline}" draggable="true" data-opp="${o._id}" data-act="open" data-id="${o.companyId}">
     <div class="top"><span class="name">${esc(c.name||'Untitled')}</span><span class="pri pri-${o.priority||'normal'}" title="${o.priority||'normal'} priority"></span></div>
     <div class="meta">${c.category?esc(c.category)+' · ':''}${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
+    ${c.phone?`<div class="meta">${phoneLink(c)}</div>`:''}
     <div class="meta"><span class="val">${o.pipeline==='email'?(o.mrr?money(o.mrr)+'/mo':'—'):(o.value?money(o.value):'—')}</span>${o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
     ${la?`<div class="meta">Last: ${esc(la.type==='email'?(la.status==='draft'?'draft':'email'):la.type)} ${fmtDay(la.at)}</div>`:''}
     ${o.mockupUrl||c.website?`<div class="meta">${o.mockupUrl?`<a href="${esc(href(o.mockupUrl))}" target="_blank" rel="noopener" data-stop>${o.pipeline==='web'?'Mockup':'Showcase'} ↗</a>`:''}${c.website?`<a href="${esc(href(c.website))}" target="_blank" rel="noopener" data-stop>Site ↗</a>`:''}</div>`:''}
@@ -729,7 +736,7 @@ function viewLeads(){
   ${cs.length?`<div class="tbl-wrap"><table><thead><tr>${th('name','Business')}<th>Pipelines</th><th>Contact</th>${th('contact','Last email')}${th('follow','Next follow-up')}${th('value','Value','r')}<th>Links</th></tr></thead><tbody>${cs.map(c=>{const os=oppsOf(c._id);const lo=lastOut(c._id);const st=emailStats();const rep=lo&&st[lo._id]&&st[lo._id].replied;const nf=nextFU(c);
     return `<tr class="click" data-act="open" data-id="${c._id}"><td><b>${esc(c.name)}</b><div style="color:var(--ink-3);font-size:12px">${esc([c.category,[c.city,c.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</div></td>
     <td>${os.map(o=>`${pipePill(o.pipeline)} <span style="color:var(--ink-3);font-size:12px">${esc(o.stage)}</span>`).join('<br>')||'—'}</td>
-    <td class="clip">${esc(c.contactName||'')}${c.contactName&&c.email?'<br>':''}<span style="color:var(--ink-3);font-size:12px">${esc(c.email||'')}</span></td>
+    <td class="clip">${esc(c.contactName||'')}${c.contactName&&(c.email||c.phone)?'<br>':''}${c.phone?`<a class="tel" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a><br>`:''}<span style="color:var(--ink-3);font-size:12px">${esc(c.email||'')}</span></td>
     <td class="clip">${lo?`${fmtDay(lo.at)} ${rep?'<span class="pill p-good">Replied</span>':''}<div style="color:var(--ink-3);font-size:12px" class="clip">${esc(lo.subject||'')}</div>`:(actsOf(c._id).some(a=>a.status==='draft')?'<span class="pill p-plain">Draft ready</span>':'—')}</td>
     <td>${nf?`<span class="pill ${nf<today()?'p-bad':nf===today()?'p-warn':'p-plain'}">${fmtRel(nf)}</span>`:'—'}</td><td class="r num">${coValue(c)?money(coValue(c)):'—'}</td><td>${linkBtns(c)}</td></tr>`;}).join('')}</tbody></table></div>`:`<div class="panel"><b>No leads ${list(S.companies).length?'match these filters':'yet'}.</b><p style="color:var(--ink-3);margin:6px 0 0">Add one with New lead, import a CSV, or let the daily lead drop fill this in.</p></div>`}`;
 }
@@ -859,9 +866,9 @@ function drawerHtml(c){
   const st=emailStats(); const ua=unanswered(c._id);
   const cp=S.compose&&S.compose.cid===c._id?S.compose:null;
   return `<div class="scrim" data-act="close"></div><aside class="drawer" role="dialog" aria-label="${esc(c.name)}">
-  <div class="d-head"><div class="row1"><div style="min-width:0"><div class="label">${esc([c.category,[c.city,c.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')||'Lead')}</div><h2>${esc(c.name)}</h2></div><button class="btn sm" data-act="close" aria-label="Close">Close</button></div>
+  <div class="d-head"><div class="row1"><div style="min-width:0"><div class="label">${esc([c.category,[c.city,c.state].filter(Boolean).join(', '),theirTime(c)].filter(Boolean).join(' · ')||'Lead')}</div><h2>${esc(c.name)}</h2></div><button class="btn sm" data-act="close" aria-label="Close">Close</button></div>
   <div class="actions">${os.map(o=>pipePill(o.pipeline)+` <span class="pill p-plain">${esc(o.stage)}</span>`).join(' ')}${ua?'<span class="pill p-good">Waiting on your reply</span>':''}</div>
-  <div class="actions"><button class="btn sm primary" data-act="compose" data-k="email">Log email</button><button class="btn sm" data-act="compose" data-k="reply">Log reply</button><button class="btn sm" data-act="compose" data-k="call">Log call</button><button class="btn sm" data-act="compose" data-k="note">Note</button><button class="btn sm" data-act="add-task" data-id="${c._id}">+ Task</button><button class="btn sm" data-act="add-doc" data-id="${c._id}">+ File</button>${os.filter(o=>o.mockupUrl).map(o=>`<a class="btn sm" href="${esc(href(o.mockupUrl))}" target="_blank" rel="noopener">${o.pipeline==='web'?'Mockup':'Showcase'}</a>`).join('')}${c.website?`<a class="btn sm" href="${esc(/^https?:/.test(c.website)?c.website:'https://'+c.website)}" target="_blank" rel="noopener">Website</a>`:''}${c.instagram?`<a class="btn sm" href="${esc(/^https?:/.test(c.instagram)?c.instagram:'https://instagram.com/'+c.instagram.replace('@',''))}" target="_blank" rel="noopener">Instagram</a>`:''}</div></div>
+  <div class="actions">${c.phone?`<a class="btn sm primary" href="${telHref(c.phone)}">Call ${esc(c.phone)}</a>`:''}<button class="btn sm ${c.phone?'':'primary'}" data-act="compose" data-k="email">Log email</button><button class="btn sm" data-act="compose" data-k="reply">Log reply</button><button class="btn sm" data-act="compose" data-k="call">Log call</button><button class="btn sm" data-act="compose" data-k="note">Note</button><button class="btn sm" data-act="add-task" data-id="${c._id}">+ Task</button><button class="btn sm" data-act="add-doc" data-id="${c._id}">+ File</button>${os.filter(o=>o.mockupUrl).map(o=>`<a class="btn sm" href="${esc(href(o.mockupUrl))}" target="_blank" rel="noopener">${o.pipeline==='web'?'Mockup':'Showcase'}</a>`).join('')}${c.website?`<a class="btn sm" href="${esc(/^https?:/.test(c.website)?c.website:'https://'+c.website)}" target="_blank" rel="noopener">Website</a>`:''}${c.instagram?`<a class="btn sm" href="${esc(/^https?:/.test(c.instagram)?c.instagram:'https://instagram.com/'+c.instagram.replace('@',''))}" target="_blank" rel="noopener">Instagram</a>`:''}</div></div>
   <div class="d-body" data-keep="drawer">
   ${cp?composerHtml(c,cp,os):''}
   <section class="sec"><h3>Deals <button class="btn sm ghost" data-act="add-opp" data-id="${c._id}">+ Add ${os.some(o=>o.pipeline==='email')&&!os.some(o=>o.pipeline==='web')?'website deal':!os.some(o=>o.pipeline==='email')?'email deal':'deal'}</button></h3>${os.map(o=>oppHtml(o)).join('')||'<div class="empty">No deals yet.</div>'}</section>
