@@ -447,18 +447,28 @@ async function afterReply(cid, outcome, atIso){
 /* ---------- boot ---------- */
 async function boot(){
   if(!window.supabase){ $('.main').innerHTML='<div class="wrap"><div class="panel"><h2>Could not load</h2><p style="margin:0;color:var(--ink-2)">Check your connection and reload.</p></div></div>'; return; }
+  const hk=(location.hash.match(/(?:^#|&)k=([A-Za-z0-9_-]{20,})/)||[])[1];
+  if(hk){ try{ localStorage.setItem('tse-crm-key',hk); }catch(_){} history.replaceState(null,'',location.pathname+'#today'); S.view='today'; }
+  let key=hk; if(!key){ try{ key=localStorage.getItem('tse-crm-key'); }catch(_){} }
+  if(key){
+    keyMode=true;
+    sb=window.supabase.createClient(SB_URL,SB_KEY,{global:{headers:{'x-crm-key':key}},auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const {data:ok}=await sb.rpc('is_crm_owner');
+    if(ok===true){ user={id:'link'}; start(); if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{}); return; }
+    try{ localStorage.removeItem('tse-crm-key'); }catch(_){} keyMode=false;
+  }
   sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'tse-crm-auth'}});
   const {data}=await sb.auth.getSession();
   sb.auth.onAuthStateChange((ev,session)=>{ if(ev==='PASSWORD_RECOVERY'){ recovering=true; user=session&&session.user; renderAuth('recover'); return; } if(recovering) return; const was=user&&user.id; user=session?session.user:null; if(user && user.id!==was) start(); if(!user){ stop(); renderAuth(); } });
   if(recovering){ renderAuth('recover'); } else if(data.session){ user=data.session.user; start(); } else renderAuth();
   if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 }
-let channel=null, recovering=/type=recovery/.test(location.hash);
+let keyMode=false, poll=null, channel=null, recovering=/type=recovery/.test(location.hash);
 async function start(){
   $('#app').innerHTML='<main class="main" style="grid-column:1/-1"><div class="wrap"><div class="panel">Loading your leads…</div></div></main>';
-  const {data:own,error:oe}=await sb.rpc('claim_crm_owner');
-  if(oe || own!==true){ renderAuth('locked'); return; }
+  if(!keyMode){ const {data:own,error:oe}=await sb.rpc('claim_crm_owner'); if(oe || own!==true){ renderAuth('locked'); return; } }
   await loadAll();
+  if(keyMode){ clearInterval(poll); poll=setInterval(()=>{ if(document.visibilityState==='visible' && !isTyping()) loadAll(); },60000); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') loadAll(); }); return; }
   if(channel) sb.removeChannel(channel);
   channel=sb.channel('crm');
   Object.values(TABLE).forEach(t=>channel.on('postgres_changes',{event:'*',schema:'public',table:t},p=>applyChange(t,p)));
@@ -498,7 +508,7 @@ function renderAuth(mode){
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-auth]'); if(!b) return; e.preventDefault();
   const k=b.dataset.auth; const msg=t=>{ const m=$('#au-msg'); if(m) m.innerHTML=t; };
-  if(k==='out'){ await sb.auth.signOut(); return; }
+  if(k==='out'){ if(keyMode){ try{ localStorage.removeItem('tse-crm-key'); }catch(_){} location.href=location.pathname; return; } await sb.auth.signOut(); return; }
   const email=($('#au-email')||{}).value?.trim(), pw=($('#au-pw')||{}).value||'';
   if(!email) return msg('<span class="err">Enter your email.</span>');
   if(k==='reset'){ const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}); return msg(error?`<span class="err">${esc(error.message)}</span>`:'<span class="ok">Check your inbox for a reset link.</span>'); }
@@ -528,7 +538,7 @@ function render(){
     <div class="rail-foot">
       <button data-act="add-lead">+ New lead</button>
       <button data-act="refresh">Refresh</button>
-      <button data-auth="out">Sign out</button>
+      <button data-auth="out">${keyMode?'Lock this device':'Sign out'}</button>
       <div class="sync-note">${gmailNote()}</div>
     </div></aside>
   <main class="main"><div class="wrap">${S.ready||S.slow ? viewHtml() : '<div class="panel">Loading…</div>'}</div></main>`;
