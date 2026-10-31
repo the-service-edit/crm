@@ -143,7 +143,9 @@ a{color:inherit}
 .board-wrap{overflow-x:auto;padding-bottom:8px;margin:0 -4px}
 .board{display:flex;gap:12px;align-items:flex-start;padding:0 4px;min-height:300px}
 .colk{flex:0 0 262px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;max-height:calc(100vh - 230px)}
-.colk.empty{flex:0 0 132px;background:var(--canvas)}
+.colk.empty{flex:0 0 96px;background:var(--canvas)}
+.colk.empty .colk-h{flex-direction:column;align-items:flex-start;gap:2px;padding:10px}
+.colk.empty .colk-h b{font-size:12px;line-height:1.25}
 .colk.empty .colk-h b{font-weight:500;color:var(--ink-3)}
 .colk.empty .colk-b .empty{font-size:11.5px}
 .colk.drop{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue) inset}
