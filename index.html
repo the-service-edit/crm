@@ -21,7 +21,7 @@
 /* TSE showcase system: paper ground, dark brown bands, ink type, uppercase Geist headlines.
    Blue chips mean websites, butter chips mean email. */
 :root{
-  --bg:#FFFDF8; --canvas:#F7F4EC; --surface:#FFFDF8; --ink:#1B1512; --ink-2:#3d342d; --ink-3:#6B5F54;
+  --bg:#FFFFFF; --canvas:#F7F4EC; --surface:#FFFFFF; --ink:#1B1512; --ink-2:#3d342d; --ink-3:#6B5F54;
   --line:#DED6C8; --line-2:#CFC5B4; --rail:#3A2E25; --rail-fg:#F1EDE2; --rail-dim:#BFB4A3;
   --web:#C9E4FB; --web-ink:#0f3554; --email:#FFEAA6; --email-ink:#4d3b00; --blue:#5B9BD5; --brown:#3A2E25;
   --hl:#EBDDB8; --good:#2f6b45; --good-bg:#DDEBDD; --warn:#8a5a12; --warn-bg:#F3E3C1; --bad:#a3392f; --bad-bg:#F5DCD5;
@@ -44,7 +44,7 @@
   --shadow:0 24px 60px rgba(0,0,0,.5); color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{background:var(--canvas);color:var(--ink);font-family:var(--f-sans);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
@@ -269,7 +269,7 @@ body{margin:0;min-height:100%}
 .seg button.on{background:var(--brown);color:var(--canvas)}
 .ic-out{background:var(--brown);color:var(--canvas)}
 .tabs button.on{border-color:var(--brown)}
-.auth{min-height:100vh;display:grid;grid-template-rows:auto 1fr;background:var(--canvas)}
+.auth{min-height:100vh;display:grid;grid-template-rows:auto 1fr;background:var(--bg)}
 .auth .band{background:var(--rail);color:var(--rail-fg)}
 .auth .band .in{max-width:1100px;margin:0 auto;padding:calc(22px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) 40px max(20px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:28px}
 .auth .band h1{margin:0;font-size:clamp(32px,5vw,58px);line-height:1;letter-spacing:-.03em;text-transform:uppercase;font-weight:600;max-width:16ch}
