@@ -161,6 +161,13 @@ a{color:inherit}
 .card .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:var(--ink-3);font-size:12px}
 .tel{color:var(--ink);font-weight:500;text-decoration:none;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tel:hover{text-decoration:underline}
+.pill.stage{background:color-mix(in srgb,var(--sc) 20%,#fff);color:var(--ink);border-color:color-mix(in srgb,var(--sc) 45%,#fff)}
+.pill.stage i{width:7px;height:7px;border-radius:50%;background:var(--sc);display:inline-block}
+.colk-h{border-top:4px solid var(--sc,var(--line));border-radius:var(--r) var(--r) 0 0}
+.colk-h b{display:flex;align-items:center;gap:7px}
+.colk-h b::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--sc,var(--line));flex:none}
+.card{border-left:4px solid var(--sc,var(--line))!important}
+.legend-stages{display:flex;gap:6px;flex-wrap:wrap}
 .card .meta a{color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
 .card .val{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
 .card.email{border-left:4px solid var(--email)} .card.web{border-left:4px solid var(--web)}
@@ -648,6 +655,14 @@ const TZ={WA:'Australia/Perth',NT:'Australia/Darwin',SA:'Australia/Adelaide',QLD
 function theirTime(c){ const z=TZ[String(c.state||'').toUpperCase()]; if(!z) return ''; try{ return new Date().toLocaleTimeString('en-AU',{timeZone:z,hour:'numeric',minute:'2-digit'}).replace(' ','').toLowerCase()+' their time'; }catch(_){ return ''; } }
 const telHref = p => 'tel:'+String(p||'').replace(/[^0-9+]/g,'');
 function phoneLink(c,cls){ return c.phone?`<a class="${cls||''}" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a>`:''; }
+/* Stage colours: sand = preparing, gold = ready to send, blues = waiting on them, greens = they engaged, terracotta = money on the table */
+function stageColor(name){ const n=String(name||'').toLowerCase(); const r=stageRole(name);
+  if(r==='won') return '#2F6B45'; if(r==='lost') return '#A89C8C';
+  if(r==='negotiation') return '#B8643A'; if(r==='proposal') return '#D98E5B';
+  if(r==='meeting') return '#3F8A80'; if(r==='replied') return '#7FAE7E';
+  if(r==='out'){ if(/second/.test(n)) return '#3E6690'; if(/first|follow/.test(n)) return '#5B86AD'; return '#86ABCB'; }
+  if(/ready/.test(n)) return '#E2B84E'; if(/complete/.test(n)) return '#C9B27A'; return '#CFC5B4'; }
+const stagePill = st => `<span class="pill stage" style="--sc:${stageColor(st)}"><i></i>${esc(st)}</span>`;
 const pipePill = p => p==='web' ? '<span class="pill p-web">Web</span>' : '<span class="pill p-email">Email</span>';
 function weeklyBars(){
   const weeks=[]; const d=new Date(); d.setHours(12); d.setDate(d.getDate()-((d.getDay()+6)%7));
@@ -663,7 +678,7 @@ function healthHtml(p){
   const live=st.filter(s=>!['won','lost'].includes(stageRole(s)));
   let worst=null,wv=0;
   const rows=live.map(s=>{ const inS=os.filter(o=>o.stage===s); const avg=inS.length?Math.round(inS.reduce((t,o)=>t+(ageDays(o.stageChangedAt||o.createdAt)||0),0)/inS.length):0; if(inS.length&&avg*inS.length>wv){wv=avg*inS.length;worst=s;}
-    return `<div class="hrow"><span class="clip" style="max-width:none">${esc(s)}</span><div class="track"><div class="fill" style="width:${inS.length/max*100}%;background:${p==='web'?'var(--blue)':'var(--ink)'}"></div></div><span class="stale num">${inS.length}${inS.length?' · '+avg+'d':''}</span></div>`; }).join('');
+    return `<div class="hrow"><span class="clip" style="max-width:none">${esc(s)}</span><div class="track"><div class="fill" style="width:${inS.length/max*100}%;background:${stageColor(s)}"></div></div><span class="stale num">${inS.length}${inS.length?' · '+avg+'d':''}</span></div>`; }).join('');
   return `<div class="health">${rows}</div>${worst?`<p style="margin:12px 0 0;color:var(--ink-2);font-size:13px">Most stuck: <span class="hl">${esc(worst)}</span>. Count · average days in stage.</p>`:''}`;
 }
 
@@ -697,13 +712,13 @@ function viewBoard(p){
   return head+`${hidden||S.showEmpty?`<div style="display:flex;justify-content:flex-end;margin-top:-8px"><button class="btn sm ghost" data-act="toggle-empty">${S.showEmpty?'Hide empty stages':'Show '+hidden+' empty stage'+(hidden===1?'':'s')}</button></div>`:''}<div class="board-wrap" data-keep="board-${p}"><div class="board">${(shown.length?shown:st).map(s=>{
     const inS=os.filter(o=>o.stage===s).sort((a,b)=>(ROLE_RANK[b.priority==='high'?1:0])-(a.priority==='high'?1:0)||(b.updatedAt||'').localeCompare(a.updatedAt||''));
     const sum=p==='email'?inS.reduce((t,o)=>t+(+o.mrr||0),0):inS.reduce((t,o)=>t+(+o.value||0),0);
-    return `<section class="colk${inS.length?'':' empty'}" data-stage="${esc(s)}" data-pipe="${p}"><div class="colk-h"><b>${esc(s)}</b><span class="mono">${inS.length}${sum?' · '+money(sum):''}</span></div><div class="colk-b" data-keep="col-${p}-${slug(s)}">${inS.map(o=>cardHtml(o)).join('')||'<div class="empty" style="padding:6px 4px">Empty</div>'}</div></section>`;
+    return `<section class="colk${inS.length?'':' empty'}" data-stage="${esc(s)}" data-pipe="${p}" style="--sc:${stageColor(s)}"><div class="colk-h"><b>${esc(s)}</b><span class="mono">${inS.length}${sum?' · '+money(sum):''}</span></div><div class="colk-b" data-keep="col-${p}-${slug(s)}">${inS.map(o=>cardHtml(o)).join('')||'<div class="empty" style="padding:6px 4px">Empty</div>'}</div></section>`;
   }).join('')}</div></div>`;
 }
 function cardHtml(o){
   const c=S.companies[o.companyId]||{}; const la=actsOf(o.companyId)[0];
   const od=o.nextFollowUp&&o.nextFollowUp<today();
-  return `<article class="card ${o.pipeline}" draggable="true" data-opp="${o._id}" data-act="open" data-id="${o.companyId}">
+  return `<article class="card ${o.pipeline}" style="--sc:${stageColor(o.stage)}" draggable="true" data-opp="${o._id}" data-act="open" data-id="${o.companyId}">
     <div class="top"><span class="name">${esc(c.name||'Untitled')}</span><span class="pri pri-${o.priority||'normal'}" title="${o.priority||'normal'} priority"></span></div>
     <div class="meta">${c.category?esc(c.category)+' · ':''}${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
     ${c.phone?`<div class="meta">${phoneLink(c)}</div>`:''}
@@ -716,7 +731,7 @@ function oppTable(os,p){
   if(!os.length) return '<div class="panel empty">No leads match these filters.</div>';
   const rows=[...os].sort((a,b)=>stages(p).indexOf(a.stage)-stages(p).indexOf(b.stage));
   return `<div class="tbl-wrap"><table><thead><tr><th>Business</th><th>Stage</th><th>Priority</th><th class="r">${p==='email'?'MRR':'Value'}</th><th>Last contact</th><th>Next follow-up</th><th>Mockup</th></tr></thead><tbody>${rows.map(o=>{const c=S.companies[o.companyId]||{};const la=lastOut(o.companyId);return `<tr class="click" data-act="open" data-id="${o.companyId}"><td><b>${esc(c.name)}</b><div style="color:var(--ink-3);font-size:12px">${esc([c.city,c.state].filter(Boolean).join(', '))}</div></td>
-    <td><select class="inline-input" data-stage-for="${o._id}" aria-label="Stage">${stages(p).map(s=>`<option ${s===o.stage?'selected':''}>${esc(s)}</option>`).join('')}</select></td>
+    <td style="white-space:nowrap"><span class="pri" style="background:${stageColor(o.stage)};width:10px;height:10px;margin-right:6px"></span><select class="inline-input" data-stage-for="${o._id}" aria-label="Stage">${stages(p).map(s=>`<option ${s===o.stage?'selected':''}>${esc(s)}</option>`).join('')}</select></td>
     <td><span class="pri pri-${o.priority||'normal'}"></span> ${esc(o.priority||'normal')}</td><td class="r num">${p==='email'?money(o.mrr):money(o.value)}</td><td>${la?fmtDay(la.at):'—'}</td><td>${o.nextFollowUp?fmtRel(o.nextFollowUp):'—'}</td><td>${o.mockupUrl?`<a href="${esc(o.mockupUrl)}" target="_blank" rel="noopener" data-stop>Open</a>`:'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
 }
 
@@ -737,7 +752,7 @@ function viewLeads(){
   ${filterBar(true)}
   ${cs.length?`<div class="tbl-wrap"><table><thead><tr>${th('name','Business')}<th>Pipelines</th><th>Contact</th>${th('contact','Last email')}${th('follow','Next follow-up')}${th('value','Value','r')}<th>Links</th></tr></thead><tbody>${cs.map(c=>{const os=oppsOf(c._id);const lo=lastOut(c._id);const st=emailStats();const rep=lo&&st[lo._id]&&st[lo._id].replied;const nf=nextFU(c);
     return `<tr class="click" data-act="open" data-id="${c._id}"><td><b>${esc(c.name)}</b><div style="color:var(--ink-3);font-size:12px">${esc([c.category,[c.city,c.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</div></td>
-    <td>${os.map(o=>`${pipePill(o.pipeline)} <span style="color:var(--ink-3);font-size:12px">${esc(o.stage)}</span>`).join('<br>')||'—'}</td>
+    <td>${os.map(o=>`${pipePill(o.pipeline)} ${stagePill(o.stage)}`).join('<br>')||'—'}</td>
     <td class="clip">${esc(c.contactName||'')}${c.contactName&&(c.email||c.phone)?'<br>':''}${c.phone?`<a class="tel" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a><br>`:''}<span style="color:var(--ink-3);font-size:12px">${esc(c.email||'')}</span></td>
     <td class="clip">${lo?`${fmtDay(lo.at)} ${rep?'<span class="pill p-good">Replied</span>':''}<div style="color:var(--ink-3);font-size:12px" class="clip">${esc(lo.subject||'')}</div>`:(actsOf(c._id).some(a=>a.status==='draft')?'<span class="pill p-plain">Draft ready</span>':'—')}</td>
     <td>${nf?`<span class="pill ${nf<today()?'p-bad':nf===today()?'p-warn':'p-plain'}">${fmtRel(nf)}</span>`:'—'}</td><td class="r num">${coValue(c)?money(coValue(c)):'—'}</td><td>${linkBtns(c)}</td></tr>`;}).join('')}</tbody></table></div>`:`<div class="panel"><b>No leads ${list(S.companies).length?'match these filters':'yet'}.</b><p style="color:var(--ink-3);margin:6px 0 0">Add one with New lead, import a CSV, or let the daily lead drop fill this in.</p></div>`}`;
@@ -869,7 +884,7 @@ function drawerHtml(c){
   const cp=S.compose&&S.compose.cid===c._id?S.compose:null;
   return `<div class="scrim" data-act="close"></div><aside class="drawer" role="dialog" aria-label="${esc(c.name)}">
   <div class="d-head"><div class="row1"><div style="min-width:0"><div class="label">${esc([c.category,[c.city,c.state].filter(Boolean).join(', '),theirTime(c)].filter(Boolean).join(' · ')||'Lead')}</div><h2>${esc(c.name)}</h2></div><button class="btn sm" data-act="close" aria-label="Close">Close</button></div>
-  <div class="actions">${os.map(o=>pipePill(o.pipeline)+` <span class="pill p-plain">${esc(o.stage)}</span>`).join(' ')}${ua?'<span class="pill p-good">Waiting on your reply</span>':''}</div>
+  <div class="actions">${os.map(o=>pipePill(o.pipeline)+' '+stagePill(o.stage)).join(' ')}${ua?'<span class="pill p-good">Waiting on your reply</span>':''}</div>
   <div class="actions">${c.phone?`<a class="btn sm primary" href="${telHref(c.phone)}">Call ${esc(c.phone)}</a>`:''}<button class="btn sm ${c.phone?'':'primary'}" data-act="compose" data-k="email">Log email</button><button class="btn sm" data-act="compose" data-k="reply">Log reply</button><button class="btn sm" data-act="compose" data-k="call">Log call</button><button class="btn sm" data-act="compose" data-k="note">Note</button><button class="btn sm" data-act="add-task" data-id="${c._id}">+ Task</button><button class="btn sm" data-act="add-doc" data-id="${c._id}">+ File</button>${os.filter(o=>o.mockupUrl).map(o=>`<a class="btn sm" href="${esc(href(o.mockupUrl))}" target="_blank" rel="noopener">${o.pipeline==='web'?'Mockup':'Showcase'}</a>`).join('')}${c.website?`<a class="btn sm" href="${esc(/^https?:/.test(c.website)?c.website:'https://'+c.website)}" target="_blank" rel="noopener">Website</a>`:''}${c.instagram?`<a class="btn sm" href="${esc(/^https?:/.test(c.instagram)?c.instagram:'https://instagram.com/'+c.instagram.replace('@',''))}" target="_blank" rel="noopener">Instagram</a>`:''}</div></div>
   ${c.phoneAlt||c.phoneNote?`<div style="padding:0 22px;color:var(--ink-3);font-size:12.5px;display:flex;gap:10px;flex-wrap:wrap">${c.phoneAlt?`<span>Also: <a class="tel" href="${telHref(c.phoneAlt)}">${esc(c.phoneAlt)}</a></span>`:''}${c.phoneNote?`<span>${esc(c.phoneNote)}</span>`:''}${c.phoneSource?`<a href="${esc(c.phoneSource)}" target="_blank" rel="noopener">Where this number is from</a>`:''}</div>`:''}
   <div class="d-body" data-keep="drawer">
