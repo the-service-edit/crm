@@ -1168,7 +1168,7 @@ async function importCsv(text){
 }
 const csvCell=v=>{ const s=String(v==null?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
 function save(filename,data){ const blob=new Blob([data],{type:filename.endsWith('.json')?'application/json':'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); }
-function gmailNote(){ const g=S.extra&&S.extra.gmail; if(!g||!g.lastRun) return 'Gmail replies are pulled in by Claude through the day.'; return 'Gmail checked '+fmtAgo(g.lastRun)+(g.summary?' · '+esc(g.summary):''); }
+function gmailNote(){ const g=S.extra&&S.extra.gmail; if(!g||!g.lastRun) return 'Gmail sync not running yet.'; return 'Gmail checked '+fmtAgo(g.lastRun)+(g.summary?' · '+esc(g.summary):''); }
 function fmtAgo(iso){ const m=Math.round((Date.now()-new Date(iso))/60000); if(m<2) return 'just now'; if(m<60) return m+' min ago'; const h=Math.round(m/60); if(h<24) return h+'h ago'; return fmtDay(iso); }
 function exportJson(){ save('tse-crm-backup-'+today()+'.json', JSON.stringify({exportedAt:nowIso(),companies:S.companies,opps:S.opps,acts:S.acts,docs:S.docs,tasks:S.tasks,settings:S.settings},null,2)); }
 function exportCsv(){
