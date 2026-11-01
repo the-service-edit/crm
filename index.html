@@ -592,7 +592,9 @@ function viewToday(){
   const calls=f.waiting.filter(x=>ageDays(x.last.at)>=setting('callDays'));
   const staleProps=m.props.filter(o=>ageDays(o.stageChangedAt)>=5);
   const tasksToday=list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today());
+  const hot=list(S.opps).filter(o=>isActive(o)&&isHot(o)).sort((a,b)=>(b.track.lastSeenAt||'').localeCompare(a.track.lastSeenAt||''));
   const nba=[];
+  if(hot.length) nba.push(['hot',`<b>${hot.length}</b> ${hot.length===1?'lead has':'leads have'} been on ${hot.length===1?'their':'their'} showcase in the last 48 hours: call while it's warm`]);
   if(unans.length) nba.push(['replies',`<b>${unans.length}</b> ${unans.length===1?'prospect has':'prospects have'} replied and ${unans.length===1?'is':'are'} waiting on you`]);
   if(f.overdue.length) nba.push(['due',`<b>${f.overdue.length}</b> follow-up${f.overdue.length===1?' is':'s are'} overdue`]);
   if(calls.length) nba.push(['calls',`<b>${calls.length}</b> ${calls.length===1?'lead is':'leads are'} ${setting('callDays')}+ days with no reply: call ${calls.length===1?'them':'them'}`]);
@@ -601,8 +603,8 @@ function viewToday(){
   if(staleProps.length) nba.push(['props',`<b>${staleProps.length}</b> proposal${staleProps.length===1?' has':'s have'} sat 5+ days without movement`]);
   if(f.none.length) nba.push(['none',`<b>${f.none.length}</b> live deal${f.none.length===1?' has':'s have'} no next step booked`]);
   const greet = new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening';
-  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps};
-  const tabNames=[['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
+  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps, hot};
+  const tabNames=[['hot','Hot'],['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
   const cur=tabs[S.todayTab]||tabs.due;
   return `<div class="head"><div><h1>${greet}, Mel.</h1><p>${fmtDay(today())} · ${dueCount()?`<span class="hl">${dueCount()} follow-up${dueCount()===1?'':'s'} due</span>`:'Nothing overdue'} · ${tasksToday.length} task${tasksToday.length===1?'':'s'} today</p></div>
     <div class="actions"><button class="btn" data-act="add-task">+ Task</button><button class="btn primary" data-act="add-lead">+ New lead</button></div></div>
@@ -638,6 +640,7 @@ function metric(l,v,s){ return `<div class="metric"><div class="label">${esc(l)}
 function todayRows(tab,items){
   if(!items.length) return '<div class="empty">Nothing here right now.</div>';
   return items.slice(0,40).map(it=>{
+    if(tab==='hot'){ const o=it; const c=S.companies[o.companyId]||{}; return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${esc(o.track.hotReason||'')} · ${esc(trkLine(o))}${c.phone?' · '+phoneLink(c,'tel'):''}${theirTime(c)?' · '+esc(theirTime(c)):''}</div></div><span class="pill p-good">${esc(whenTxt(o.track.lastSeenAt))}</span></div>`; }
     if(tab==='drafts'){ const a=it; return `<div class="row click" data-act="open" data-id="${a.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(a.companyId))}</div><div class="sub">Draft · ${esc(a.subject||'(no subject)')}</div></div><span class="pill p-plain">${fmtDay(a.at)}</span></div>`; }
     if(tab==='replies'){ const {c,i}=it; return `<div class="row click" data-act="open" data-id="${c._id}"><div style="min-width:0"><div class="t">${esc(c.name)}</div><div class="sub">Replied ${fmtDay(i.at)} · ${esc(i.subject||i.body||'')}</div></div><span class="pill ${i.outcome==='interested'?'p-good':'p-warn'}">${esc(i.outcome||'Reply')}</span></div>`; }
     if(tab==='waiting'||tab==='nudges'||tab==='calls'){ const {o,last}=it; const d=ageDays(last.at); return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(o.companyId))} ${pipePill(o.pipeline)}</div><div class="sub">Sent ${fmtDay(last.at)} · ${esc(last.subject||'')}</div></div><span class="pill ${d>=setting('callDays')?'p-bad':d>=setting('nudgeDays')?'p-warn':'p-plain'}">${d}d · ${d>=setting('callDays')?'Call':d>=setting('nudgeDays')?'Nudge':'Wait'}</span></div>`; }
@@ -654,6 +657,32 @@ function linkBtns(c){ const os=oppsOf(c._id); const out=[];
 const TZ={WA:'Australia/Perth',NT:'Australia/Darwin',SA:'Australia/Adelaide',QLD:'Australia/Brisbane',NSW:'Australia/Sydney',ACT:'Australia/Sydney',VIC:'Australia/Melbourne',TAS:'Australia/Hobart'};
 function theirTime(c){ const z=TZ[String(c.state||'').toUpperCase()]; if(!z) return ''; try{ return new Date().toLocaleTimeString('en-AU',{timeZone:z,hour:'numeric',minute:'2-digit'}).replace(' ','').toLowerCase()+' their time'; }catch(_){ return ''; } }
 const telHref = p => 'tel:'+String(p||'').replace(/[^0-9+]/g,'');
+/* Engagement tracking (crm_events rollup on the opp as o.track). Opens are approximate; visits and clicks are the real signal. */
+const isHot = o => !!(o&&o.track&&o.track.hot&&o.track.lastSeenAt&&(Date.now()-Date.parse(o.track.lastSeenAt))<48*3600e3);
+const secsTxt = s => { s=+s||0; return s>=60?Math.floor(s/60)+'m'+(s%60?' '+(s%60)+'s':''):s+'s'; };
+const whenTxt = iso => { if(!iso) return ''; try{ return new Date(iso).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(_){ return iso; } };
+function trkLine(o){ const t=o&&o.track; if(!t||!t.sentAt) return ''; const b=[];
+  if(t.visits) b.push(t.visits+' visit'+(t.visits===1?'':'s')+(t.engagedSecs?' · '+secsTxt(t.engagedSecs):''));
+  if(t.clicks) b.push(t.clicks+' click'+(t.clicks===1?'':'s'));
+  if(t.opens) b.push('opened'+(t.opens>1?' ×'+t.opens:''));
+  return b.length?b.join(' · '):'Sent, no activity yet'; }
+function hotPill(o){ return isHot(o)?`<span class="pill p-good" title="${esc(o.track.hotReason||'')}">Hot</span>`:''; }
+function trkHtml(o){ if(!o.trackToken) return ''; const t=o.track||{};
+  const box=(l,v)=>`<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;min-width:0"><div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">${l}</div><div style="font-size:18px;font-weight:600">${v}</div></div>`;
+  if(!t.sentAt) return `<div style="margin:10px 0;color:var(--ink-3);font-size:13px">Tracking is on. Engagement shows here once the email is logged as sent.${t.preSendEvents?' ('+t.preSendEvents+' visits before sending, ignored.)':''}</div>`;
+  const reads=(t.emailsRead||[]), clicks=(t.clickedLinks||[]);
+  return `<div style="margin:10px 0 14px">
+    <div style="display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:8px;font-size:13px;color:var(--ink-3)"><b style="color:var(--ink)">Engagement</b><span style="white-space:nowrap">since ${fmtDay(t.sentAt)}</span> ${hotPill(o)}${isHot(o)?'<span>'+esc(t.hotReason||'')+'</span>':''}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">${box('Showcase visits',t.visits||0)}${box('Time on page',secsTxt(t.engagedSecs))}${box('Clicks',t.clicks||0)}${box('Opens*',t.opens||0)}</div>
+    <div style="font-size:13px;margin-top:8px;line-height:1.55">
+      ${t.lastSeenAt?`Last on the showcase: <b>${esc(whenTxt(t.lastSeenAt))}</b><br>`:''}
+      ${reads.length?`Scrolled through: ${reads.map(esc).join(', ')}<br>`:''}
+      ${t.readOffer?'Reached the offer section<br>':''}
+      ${clicks.length?`Clicked: ${clicks.map(c=>esc(String(c).replace('|',' → '))).join('; ')}<br>`:''}
+      ${t.lastOpenAt?`Last open: ${esc(whenTxt(t.lastOpenAt))}<br>`:''}
+    </div>
+    <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">*Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images. Visits and clicks are the real signal.</div>
+  </div>`; }
 function phoneLink(c,cls){ return c.phone?`<a class="${cls||''}" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a>`:''; }
 /* Stage colours: sand = preparing, gold = ready to send, blues = waiting on them, greens = they engaged, terracotta = money on the table */
 function stageColor(name){ const n=String(name||'').toLowerCase(); const r=stageRole(name);
@@ -722,6 +751,7 @@ function cardHtml(o){
     <div class="top"><span class="name">${esc(c.name||'Untitled')}</span><span class="pri pri-${o.priority||'normal'}" title="${o.priority||'normal'} priority"></span></div>
     <div class="meta">${c.category?esc(c.category)+' · ':''}${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
     ${c.phone?`<div class="meta">${phoneLink(c)}</div>`:''}
+    ${trkLine(o)?`<div class="meta">${hotPill(o)}<span>${esc(trkLine(o))}</span></div>`:''}
     <div class="meta"><span class="val">${o.pipeline==='email'?(o.mrr?money(o.mrr)+'/mo':'—'):(o.value?money(o.value):'—')}</span>${o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
     ${la?`<div class="meta">Last: ${esc(la.type==='email'?(la.status==='draft'?'draft':'email'):la.type)} ${fmtDay(la.at)}</div>`:''}
     ${o.mockupUrl||c.website?`<div class="meta">${o.mockupUrl?`<a href="${esc(href(o.mockupUrl))}" target="_blank" rel="noopener" data-stop>${o.pipeline==='web'?'Mockup':'Showcase'} ↗</a>`:''}${c.website?`<a href="${esc(href(c.website))}" target="_blank" rel="noopener" data-stop>Site ↗</a>`:''}</div>`:''}
@@ -908,6 +938,7 @@ function oppHtml(o){
   const p=o.pipeline;
   return `<div class="opp ${p}" data-opp-fields="${o._id}"><div class="opp-h"><div style="display:flex;gap:8px;align-items:center">${pipePill(p)}<b>${p==='email'?'Email marketing retainer':'Website project'}</b></div>
     <div class="actions"><button class="btn sm" data-act="won" data-id="${o._id}">Mark won</button><button class="btn sm ghost" data-act="lost" data-id="${o._id}">Mark lost</button></div></div>
+  ${trkHtml(o)}
   <div class="fields">
     <div class="field"><label for="o-st-${o._id}">Stage</label><select id="o-st-${o._id}" data-stage-for="${o._id}">${stages(p).map(s=>`<option ${s===o.stage?'selected':''}>${esc(s)}</option>`).join('')}${stages(p).includes(o.stage)?'':`<option selected>${esc(o.stage)}</option>`}</select></div>
     <div class="field"><label for="o-pr-${o._id}">Priority</label><select id="o-pr-${o._id}" name="priority">${['high','normal','low'].map(x=>`<option value="${x}" ${(o.priority||'normal')===x?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select></div>
