@@ -51,7 +51,11 @@ Deno.serve(async (req) => {
   if (!ok) return json({ error: "unauthorised" }, 401);
 
   const { addr, dom } = await loadWatch();
-  if (req.method === "GET") return json({ addresses: [...addr.keys()], domains: [...dom.keys()] });
+  if (req.method === "GET") {
+    const { data: g } = await sb.from("crm_settings").select("data").eq("id", "gmail").maybeSingle();
+    await sb.from("crm_settings").upsert({ id: "gmail", data: { ...(g?.data || {}), lastRun: new Date().toISOString(), source: "apps-script" }, updated_at: new Date().toISOString() });
+    return json({ addresses: [...addr.keys()], domains: [...dom.keys()] });
+  }
   if (req.method !== "POST") return json({ error: "method" }, 405);
 
   const body = await req.json().catch(() => ({}));
@@ -106,10 +110,18 @@ Deno.serve(async (req) => {
         await sb.from("crm_opps").update({ data: d, updated_at: new Date().toISOString() }).eq("id", o.id);
       }
     } else {
-      const auto = !!m.auto || /^(automatic reply|auto:|out of office|autoreply)/i.test(String(m.subject || ""));
-      await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: "reply", direction: "in", subject: m.subject || "", body: text, from: m.from || "", at, outcome: auto ? "auto-reply" : "", gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } });
-      replies++;
-      if (!auto) for (const o of live) {
+      const subj = String(m.subject || "");
+      const marketing = !!m.bulk || /confirm (your )?subscription|welcome to|thanks for (subscribing|signing up|joining)|you're (in|subscribed)|order (confirmation|#)|your order|receipt|newsletter|verify your email/i.test(subj)
+        || /unsubscribe|kmail-lists\.com|list-manage\.com|manage (your )?preferences|view (this|in) (email )?(in )?(your )?browser/i.test(text.slice(-3000) + " " + text.slice(0, 800))
+        || /no-?reply|newsletter|mailer|notifications?@/i.test(String(m.from || ""));
+      const auto = !!m.auto || /automatic reply|auto(-| )?reply|^auto:|out of office|thanks for getting in touch|we('ve| have) received your (email|message|enquiry)/i.test(subj)
+        || /^\s*(thanks|thank you) for (getting in touch|your (email|message|enquiry))[\s\S]{0,200}(get back to you|respond) within/i.test(text);
+      const firstOut = (acts || []).filter((a) => a.data.type === "email" && a.data.status === "sent" && a.data.direction !== "in").map((a) => { const t = new Date(a.data.at || ""); return isNaN(+t) ? "" : t.toISOString(); }).filter(Boolean).sort()[0];
+      const afterOutreach = !!firstOut && firstOut <= at;
+      const isReply = !marketing && afterOutreach;
+      await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: isReply ? "reply" : "list", direction: "in", subject: subj, body: text, from: m.from || "", at, outcome: marketing ? "their marketing email" : !afterOutreach ? "email from them before outreach" : auto ? "auto-reply" : "", gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } });
+      if (isReply && !auto) replies++;
+      if (isReply && !auto) for (const o of live) {
         const d = { ...o.data }; const r = role(d.stage);
         if (r === "pre" || r === "out") {
           const to = stagesOf(d.pipeline).find((s: string) => role(s) === "replied");
