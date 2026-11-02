@@ -400,6 +400,57 @@ body.modal-open{overflow:hidden}
   .modal .box>.actions{margin:auto -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px))}
   .modal .box>.actions .btn{flex:1;justify-content:center;padding-block:12px}
 }
+/* ===== Phone layout v3 (2 Nov 2026): slim top bar, bottom tab bar, More sheet ===== */
+.tabbar{display:none}
+.more-search{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:12px;padding:0 12px;height:46px;background:var(--surface)}
+.more-search svg{width:16px;height:16px;fill:none;stroke:var(--ink-3);stroke-width:1.6;flex:none}
+.more-search input{border:0;outline:0;background:transparent;width:100%;min-width:0;font-size:16px}
+.more-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.more-list a,.more-list button{display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:var(--ink);background:var(--surface);border:0;border-bottom:1px solid var(--line);font-size:16px;text-align:left;cursor:pointer;width:100%}
+.more-list>:last-child{border-bottom:0}
+.more-list svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;color:var(--ink-2)}
+.more-list span{flex:1}
+.more-list b{color:var(--ink-3);font-weight:400;font-size:20px;line-height:1}
+.more-list .on{background:var(--canvas)}
+.more-list .badge,.tabbar .badge{font-style:normal;background:var(--ink);color:#fff;border-radius:999px;font-size:11px;font-weight:600;min-width:18px;height:18px;padding:0 5px;display:inline-grid;place-items:center}
+.more-list.sub button{color:var(--ink-2)}
+.more-note{margin:0;color:var(--ink-3);font-size:12.5px}
+@media (max-width:820px){
+  .rail{position:sticky;top:0;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;overflow:visible;height:auto;
+    padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px))}
+  .rail .navgroup,.rail .rail-search,.rail .rail-foot [data-act="refresh"],.rail .rail-foot [data-auth],.rail .rail-foot .sync-note{display:none}
+  .rail .brand{padding:0}
+  .rail-foot{margin:0}
+  .rail-foot button[data-act="add-lead"]{background:var(--rail-fg);color:var(--rail);border:0;font-weight:600;padding:9px 14px;border-radius:10px;font-size:14px}
+  .tabbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:35;background:rgba(255,255,255,.96);-webkit-backdrop-filter:saturate(1.4) blur(14px);backdrop-filter:saturate(1.4) blur(14px);border-top:1px solid var(--line);
+    padding:6px max(4px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
+  .tabbar a,.tabbar button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;font:500 11px/1.1 var(--f-sans);color:var(--ink-3);text-decoration:none;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .tabbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .tabbar .on{color:var(--ink)}
+  .tabbar .on svg{stroke-width:1.9}
+  .tabbar .badge{position:absolute;top:0;left:calc(50% + 6px);height:16px;min-width:16px;font-size:10px}
+  .main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  .drawer{z-index:45}
+}
+@media (max-width:640px){ .modal .more-box{gap:14px;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))} }
+td>.tv{display:contents}
+@media (max-width:820px){ .rail .logo{width:64px;height:34px} }
+@media (max-width:640px){
+  .row .sub{white-space:normal;overflow:visible}
+  .tbl-wrap{border:0;background:transparent;overflow:visible}
+  .tbl-wrap table,.tbl-wrap tbody{display:block;width:100%}
+  .tbl-wrap thead{display:none}
+  .tbl-wrap tr{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:10px}
+  .tbl-wrap td{display:flex;align-items:baseline;gap:12px;padding:5px 0;border:0!important;max-width:none;white-space:normal;text-align:left;min-height:0}
+  .tbl-wrap td::before{content:attr(data-label);flex:0 0 34%;color:var(--ink-3);font-size:12.5px;font-weight:400}
+  .tbl-wrap td>.tv{display:block;flex:1;min-width:0;overflow-wrap:anywhere}
+  .tbl-wrap td.clip{max-width:none;overflow:visible}
+  .tbl-wrap td:empty{display:none}
+  .tbl-wrap td:not([data-label])::before,.tbl-wrap td[data-label=""]::before{content:none;display:none}
+  .tbl-wrap td:first-child{font-size:15px;padding-bottom:8px}
+  .tbl-wrap td:first-child::before{display:none}
+}
 </style>
 </head>
 <body>
@@ -655,6 +706,10 @@ document.addEventListener('input',e=>{ const f=e.target.closest && e.target.clos
 /* ---------- render ---------- */
 const VIEWS=[['today','Today'],['email','Email marketing'],['web','Websites'],['leads','Leads'],['outreach','Emails sent'],['files','Mockups & files'],['revenue','Revenue'],['tasks','Tasks'],['settings','Settings']];
 const NAV_GROUPS=[['Main menu',['today','leads','tasks']],['Pipelines',['email','web']],['Outreach',['outreach','files']],['Business',['revenue','settings']]];
+/* Phone tab bar: the four places Mel works from most, everything else under More. */
+const TABS=['today','leads','email','web'];
+const TAB_LABEL={today:'Today',leads:'Leads',email:'Email',web:'Websites'};
+const ICON_MORE='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>';
 const _i=d=>`<svg viewBox="0 0 16 16" aria-hidden="true">${d}</svg>`;
 const ICONS={today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
 function render(){
@@ -671,10 +726,14 @@ function render(){
       <button data-auth="out">${keyMode?'Lock this device':'Sign out'}</button>
       <div class="sync-note">${gmailNote()}</div>
     </div></aside>
+  <nav class="tabbar" aria-label="Sections">${TABS.map(k=>{const l=TAB_LABEL[k]||k;return `<a href="#${k}" class="${S.view===k?'on':''}"${S.view===k?' aria-current="page"':''}>${ICONS[k]||''}<span>${l}</span>${k==='today'&&counts[k]?`<i class="badge">${counts[k]>99?'99+':counts[k]}</i>`:''}</a>`;}).join('')}<button type="button" data-act="more" class="${TABS.includes(S.view)?'':'on'}">${ICON_MORE}<span>More</span>${counts.tasks?`<i class="badge">${counts.tasks}</i>`:''}</button></nav>
   <main class="main"><div class="wrap">${S.ready||S.slow ? viewHtml() : '<div class="panel">Loading…</div>'}</div></main>`;
+  labelTables(app);
   renderOverlay();
   document.querySelectorAll('[data-keep]').forEach(el=>{ const k=keep[el.dataset.keep]; if(k){ el.scrollTop=k[0]; el.scrollLeft=k[1]; } });
 }
+/* On phones each table row becomes a card; give every cell its column name to show as a label. */
+function labelTables(root){ root.querySelectorAll('.tbl-wrap table').forEach(t=>{ const hs=[...t.querySelectorAll('thead th')].map(th=>th.textContent.trim()); t.querySelectorAll('tbody tr').forEach(tr=>{ [...tr.children].forEach((td,i)=>{ if(hs[i]) td.setAttribute('data-label',hs[i]); if(i>0 && td.childNodes.length && !td.querySelector(':scope>.tv')){ const w=document.createElement('div'); w.className='tv'; while(td.firstChild) w.appendChild(td.firstChild); td.appendChild(w); } }); }); }); }
 function viewHtml(){
   let banner='';
   if(S.slow && !S.ready) banner='<div class="banner warn">Your store is slow to answer, so what you see may be out of date. It will refresh by itself.</div>';
@@ -1148,6 +1207,13 @@ function composerHtml(c,cp,os){
 function modalHtml(){ return modalInner().replace('<h2>','<h2 class="mh"><span>').replace('</h2>','</span><button type="button" class="mx" data-act="close-modal" aria-label="Close">&times;</button></h2>').replace(/<form class="box"/g,'<form novalidate class="box"'); }
 function modalInner(){
   const m=S.modal;
+  if(m.type==='more'){ const counts={tasks:list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today()).length};
+    const items=['tasks','outreach','files','revenue','settings'];
+    return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><div class="box more-box"><h2>More</h2>
+    <label class="more-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input id="more-q" type="search" placeholder="Search leads" value="${esc(S.q)}" enterkeyhint="search"></label>
+    <nav class="more-list">${items.map(k=>`<a href="#${k}" data-act="close-modal" class="${S.view===k?'on':''}">${ICONS[k]||''}<span>${(VIEWS.find(v=>v[0]===k)||[])[1]}</span>${counts[k]?`<i class="badge">${counts[k]}</i>`:''}<b aria-hidden="true">›</b></a>`).join('')}</nav>
+    <div class="more-list sub"><button type="button" data-act="refresh"><span>Refresh</span></button><button type="button" data-auth="out"><span>${keyMode?'Lock this device':'Sign out'}</span></button></div>
+    <p class="more-note">${gmailNote()}</p></div></div>`; }
   if(m.type==='lead'){ const p=m.p||'email';
     return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><form class="box" data-form="new-lead" data-track><h2>New lead</h2>
     <div class="fields">${inp('nl-name','name','Business name','','text',true,'required autofocus')}${inp('nl-email','email','Email','','email')}${inp('nl-contact','contactName','Contact name','')}${inp('nl-web','website','Website','')}${inp('nl-ig','instagram','Instagram','')}${inp('nl-city','city','City','')}${inp('nl-state','state','State','')}${inp('nl-cat','category','Category','','text',false,'placeholder="Café, bakery, plumber…"')}${inp('nl-phone','phone','Phone','','tel')}
@@ -1190,6 +1256,7 @@ document.addEventListener('click', async e=>{
     case 'fkind': S.fileKind=el.dataset.k; render(); break;
     case 'sort': S.sort=el.dataset.k; render(); break;
     case 'expand': S.expanded[id]=!S.expanded[id]; render(); renderOverlay(); break;
+    case 'more': S.modal={type:'more'}; renderOverlay(); break;
     case 'add-lead': S.modal={type:'lead',p:el.dataset.p||(S.view==='web'?'web':'email')}; renderOverlay(); break;
     case 'add-task': S.modal={type:'task',cid:id||S.open||''}; renderOverlay(); break;
     case 'add-doc': S.modal={type:'doc',cid:id}; renderOverlay(); break;
@@ -1233,7 +1300,8 @@ document.addEventListener('change', async e=>{
 document.addEventListener('input', e=>{ if(e.target.dataset && e.target.dataset.railsearch!==undefined){ S.q=e.target.value; clearTimeout(window.__rq); window.__rq=setTimeout(()=>{ if(!['leads','email','web'].includes(S.view)) location.hash='#leads'; else render(); setTimeout(()=>{ const n=$('#rail-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length);} },0); },250); return; }
   if(e.target.id==='f-q'){ S.q=e.target.value; clearTimeout(window.__qt); window.__qt=setTimeout(()=>{ const pos=e.target.selectionStart; render(); const n=$('#f-q'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(_){} } },180); }
   if(e.target.id==='nl-name'||e.target.id==='nl-email'||e.target.id==='nl-web'){ const f=e.target.form; const d=findDupe(f.name.value,f.email.value,f.website.value); $('#dupe-warn').innerHTML=d?`<div class="banner warn">Looks like <b>${esc(d.name)}</b> is already here. <button type="button" class="btn sm" data-act="open" data-id="${d._id}">Open it</button></div>`:''; } });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(S.modal){S.modal=null;renderOverlay();} else if(S.compose){S.compose=null;renderOverlay();} else if(S.open){S.open=null;renderOverlay();} } });
+document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target && e.target.id==='more-q'){ e.preventDefault(); S.q=e.target.value; S.modal=null; renderOverlay(); if(S.view==='leads') render(); else location.hash='#leads'; return; }
+  if(e.key==='Escape'){ if(S.modal){S.modal=null;renderOverlay();} else if(S.compose){S.compose=null;renderOverlay();} else if(S.open){S.open=null;renderOverlay();} } });
 document.addEventListener('submit', async e=>{
   const f=e.target; if(!f.dataset.form) return; e.preventDefault();
   const fd=Object.fromEntries(new FormData(f).entries());
