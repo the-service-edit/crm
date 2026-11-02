@@ -564,6 +564,13 @@ async function afterReply(cid, outcome, atIso){
 }
 
 /* ---------- boot ---------- */
+/* Always pick up the newest version: check on open and whenever the app comes back to the front, reload once when it lands. */
+function registerSW(){
+  if(!('serviceWorker' in navigator) || location.protocol!=='https:') return;
+  const had=!!navigator.serviceWorker.controller; let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(had && !reloaded && !isTyping() && !S.modal){ reloaded=true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); }); }).catch(()=>{});
+}
 async function boot(){
   if(!window.supabase){ $('.main').innerHTML='<div class="wrap"><div class="panel"><h2>Could not load</h2><p style="margin:0;color:var(--ink-2)">Check your connection and reload.</p></div></div>'; return; }
   const hk=(location.hash.match(/(?:^#|&)k=([A-Za-z0-9_-]{20,})/)||[])[1];
@@ -573,14 +580,14 @@ async function boot(){
     keyMode=true;
     sb=window.supabase.createClient(SB_URL,SB_KEY,{global:{headers:{'x-crm-key':key}},auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
     const {data:ok}=await sb.rpc('is_crm_owner');
-    if(ok===true){ user={id:'link'}; start(); if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{}); return; }
+    if(ok===true){ user={id:'link'}; start(); if('serviceWorker' in navigator && location.protocol==='https:') registerSW(); return; }
     try{ localStorage.removeItem('tse-crm-key'); }catch(_){} keyMode=false;
   }
   sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'tse-crm-auth'}});
   const {data}=await sb.auth.getSession();
   sb.auth.onAuthStateChange((ev,session)=>{ if(ev==='PASSWORD_RECOVERY'){ recovering=true; user=session&&session.user; renderAuth('recover'); return; } if(recovering) return; const was=user&&user.id; user=session?session.user:null; if(user && user.id!==was) start(); if(!user){ stop(); renderAuth(); } });
   if(recovering){ renderAuth('recover'); } else if(data.session){ user=data.session.user; start(); } else renderAuth();
-  if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+  registerSW();
 }
 let keyMode=false, poll=null, channel=null, recovering=/type=recovery/.test(location.hash);
 async function start(){
