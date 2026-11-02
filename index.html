@@ -382,6 +382,24 @@ tr.click:hover td{background:#FAF9F7}
   .colk{flex-basis:84vw}
 }
 @media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+/* ===== Modals that work on phones (2 Nov 2026) =====
+   Sized to the visible viewport (keyboard excluded), sticky title with a close button, sticky Save/Cancel bar,
+   no page scroll behind, and 16px inputs on touch screens so iOS never zooms the page. */
+.modal{top:var(--vvt,0px);bottom:auto;height:var(--vvh,100%);overscroll-behavior:contain}
+.modal .box{position:relative;max-height:min(90vh,calc(var(--vvh,100vh) - 32px));padding-bottom:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.modal .box>h2.mh{position:sticky;top:-22px;z-index:3;background:var(--bg);margin:-22px -22px 0;padding:18px 14px 12px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
+.modal .mx{flex:none;width:40px;height:40px;border:0;border-radius:10px;background:transparent;font-size:26px;line-height:1;color:var(--ink-2);cursor:pointer;display:grid;place-items:center}
+.modal .mx:hover{background:var(--canvas)}
+.modal .box>.actions{position:sticky;bottom:0;z-index:3;background:var(--bg);margin:0 -22px;padding:12px 22px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap}
+body.modal-open{overflow:hidden}
+@media (pointer:coarse){.field input,.field select,.field textarea,.filters input,.filters select,.inline-input,.composer input,.composer textarea,.composer select,#au-email,#au-pw{font-size:16px}}
+@media (max-width:640px){
+  .modal{padding:0;place-items:stretch}
+  .modal .box{width:100%;max-height:none;height:100%;border-radius:0;padding:22px 16px 0}
+  .modal .box>h2.mh{margin:-22px -16px 0;padding:calc(12px + env(safe-area-inset-top,0px)) 8px 10px 16px}
+  .modal .box>.actions{margin:auto -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+  .modal .box>.actions .btn{flex:1;justify-content:center;padding-block:12px}
+}
 </style>
 </head>
 <body>
@@ -1031,8 +1049,15 @@ function renderOverlay(){
   const keep={}; el.querySelectorAll('[data-keep]').forEach(x=>keep[x.dataset.keep]=x.scrollTop);
   el.innerHTML=(S.open&&S.companies[S.open]?drawerHtml(S.companies[S.open]):'')+(S.modal?modalHtml():'');
   el.querySelectorAll('[data-keep]').forEach(x=>{ if(keep[x.dataset.keep]!=null) x.scrollTop=keep[x.dataset.keep]; });
+  document.body.classList.toggle('modal-open',!!(S.modal||S.open)); fitViewport();
   renderToast();
 }
+/* Keep modals inside the part of the screen you can see, even with the phone keyboard up. */
+function fitViewport(){ const v=window.visualViewport; const r=document.documentElement.style; if(!v){ r.removeProperty('--vvh'); r.removeProperty('--vvt'); return; } r.setProperty('--vvh',v.height+'px'); r.setProperty('--vvt',v.offsetTop+'px'); }
+if(window.visualViewport){ visualViewport.addEventListener('resize',fitViewport); visualViewport.addEventListener('scroll',fitViewport); }
+fitViewport();
+/* Tap the dimmed area around a modal to close it. */
+document.addEventListener('click',e=>{ if(S.modal && e.target.classList && e.target.classList.contains('modal')){ S.modal=null; renderOverlay(); flush(); } });
 function renderToast(){ let t=$('#toast'); if(!S.toast){ if(t) t.remove(); return; } if(!t){ t=document.createElement('div'); t.id='toast'; t.className='toast'; t.setAttribute('role','status'); document.body.appendChild(t);} t.textContent=S.toast; }
 function inp(id,name,label,val,type='text',full=false,extra=''){ return `<div class="field ${full?'full':''}"><label for="${id}">${label}</label><input id="${id}" name="${name}" type="${type}" value="${esc(val==null?'':val)}" ${extra}></div>`; }
 function drawerHtml(c){
@@ -1113,10 +1138,11 @@ function composerHtml(c,cp,os){
 }
 
 /* ---------- MODALS ---------- */
-function modalHtml(){
+function modalHtml(){ return modalInner().replace('<h2>','<h2 class="mh"><span>').replace('</h2>','</span><button type="button" class="mx" data-act="close-modal" aria-label="Close">&times;</button></h2>').replace(/<form class="box"/g,'<form novalidate class="box"'); }
+function modalInner(){
   const m=S.modal;
   if(m.type==='lead'){ const p=m.p||'email';
-    return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal" data-act-self="close-modal"><form class="box" data-form="new-lead" data-track><h2>New lead</h2>
+    return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><form class="box" data-form="new-lead" data-track><h2>New lead</h2>
     <div class="fields">${inp('nl-name','name','Business name','','text',true,'required autofocus')}${inp('nl-email','email','Email','','email')}${inp('nl-contact','contactName','Contact name','')}${inp('nl-web','website','Website','')}${inp('nl-ig','instagram','Instagram','')}${inp('nl-city','city','City','')}${inp('nl-state','state','State','')}${inp('nl-cat','category','Category','','text',false,'placeholder="Café, bakery, plumber…"')}${inp('nl-phone','phone','Phone','','tel')}
     <div class="field full"><label>Pipelines</label><div style="display:flex;gap:14px"><label><input type="checkbox" name="pe" ${p==='email'?'checked':''}> Email marketing</label><label><input type="checkbox" name="pw" ${p==='web'?'checked':''}> Website</label></div></div>
     ${inp('nl-mock','mockupUrl','Mockup or showcase link','','url',true)}${inp('nl-batch','batch','Batch','','text',true,'placeholder="e.g. Lead Drop 31 Oct"')}</div>
@@ -1208,13 +1234,17 @@ document.addEventListener('submit', async e=>{
   try{
   switch(f.dataset.form){
     case 'new-lead': {
-      if(!fd.name.trim()) return;
+      if(!fd.name.trim()){ toast('Add the business name'); const n=$('#nl-name'); if(n) n.focus(); return; }
+      if(fd.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fd.email.trim())){ toast('That email address looks wrong'); const n=$('#nl-email'); if(n) n.focus(); return; }
+      const fixUrl=u=>{ u=(u||'').trim(); return u && !/^https?:\/\//i.test(u) ? 'https://'+u : u; };
+      fd.website=fixUrl(fd.website); fd.mockupUrl=fixUrl(fd.mockupUrl);
       const d=findDupe(fd.name,fd.email,fd.website); if(d && !f.dataset.force){ f.dataset.force='1'; toast('Already have '+d.name+'. Press Add lead again to add anyway.'); return; }
       const cid=await createCompany({name:fd.name.trim(),email:fd.email.trim(),contactName:fd.contactName.trim(),website:fd.website.trim(),instagram:fd.instagram.trim(),city:fd.city.trim(),state:fd.state.trim(),category:fd.category.trim(),phone:fd.phone.trim(),source:'Manual'});
       const pipes=[fd.pe?'email':null,fd.pw?'web':null].filter(Boolean); if(!pipes.length) pipes.push('email');
       for(const p of pipes) await createOpp(cid,p,{mockupUrl:fd.mockupUrl.trim(),batch:fd.batch.trim()});
       done(); S.modal=null; S.open=cid; renderOverlay(); toast('Lead added'); break; }
     case 'new-task': case 'quick-task': {
+      if(!(fd.title||'').trim()){ toast('Give the task a name'); return; }
       await put('tasks',rid('t'),{title:fd.title.trim(),due:fd.due||'',priority:fd.priority||'normal',companyId:fd.companyId||'',notes:fd.notes||'',done:false,createdAt:nowIso()});
       done(); if(f.dataset.form==='new-task'){ S.modal=null; renderOverlay(); } else f.reset(); toast('Task added'); break; }
     case 'new-doc': {
