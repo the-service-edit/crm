@@ -1,6 +1,8 @@
 // TSE CRM: Gmail sync endpoint.
 // GET  -> the addresses and domains the CRM is watching (so Gmail only sends matching mail).
 // POST -> {messages:[...]} logs new sent emails and replies against the right lead and moves the deal on.
+//         Optional {scheduled:[{id,threadId,to,cc,subject,date}]}: the FULL current list of Gmail scheduled sends (in:scheduled).
+//         Sets data.scheduledAt / scheduledSubject on each matching live opp and clears it on every other opp.
 // Auth: header x-ingest-key, checked against a hash in crm_ingest_keys. Nothing is stored for mail that matches no lead.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -105,6 +107,7 @@ Deno.serve(async (req) => {
           await sb.from("crm_acts").insert({ id: rid("a"), company_id: cid, data: { companyId: cid, oppId: o.id, type: "stage", subject: d.stage + " → " + to, body: "Email sent (from Gmail)", at, createdAt: new Date().toISOString() } });
           d.stage = to; d.stageChangedAt = at; d.maxRank = Math.max(d.maxRank || 0, RANK[role(to)] || 0);
         }
+        delete d.scheduledAt; delete d.scheduledSubject;
         if (r === "pre" || r === "out") d.nextFollowUp = addDays(day, r === "pre" || nSent <= 1 ? nudge : call - nudge);
         d.lastContact = at; d.updatedAt = new Date().toISOString();
         await sb.from("crm_opps").update({ data: d, updated_at: new Date().toISOString() }).eq("id", o.id);
@@ -134,10 +137,30 @@ Deno.serve(async (req) => {
     touched.push(cid);
   }
 
+  // Scheduled sends: only when the caller sends the list (an absent list leaves everything as it is).
+  let scheduled = 0;
+  if (Array.isArray(body.scheduled)) {
+    const due = new Map<string, { at: string; subject: string }>();
+    for (const m of body.scheduled.slice(0, 200)) {
+      if (!m) continue;
+      const cid = match([...emails(m.to), ...emails(m.cc)]); if (!cid) continue;
+      const t = new Date(m.date || ""); if (isNaN(+t)) continue;
+      const at = t.toISOString(); const cur = due.get(cid);
+      if (!cur || at < cur.at) due.set(cid, { at, subject: String(m.subject || "") });
+    }
+    const { data: all } = await sb.from("crm_opps").select("id,company_id,data");
+    for (const o of all || []) {
+      const d = { ...o.data }; const want = ["won", "lost"].includes(role(d.stage)) ? undefined : due.get(o.company_id);
+      if (want) { scheduled++; if (d.scheduledAt === want.at && d.scheduledSubject === want.subject) continue; d.scheduledAt = want.at; d.scheduledSubject = want.subject; }
+      else { if (!d.scheduledAt && !d.scheduledSubject) continue; delete d.scheduledAt; delete d.scheduledSubject; }
+      await sb.from("crm_opps").update({ data: d, updated_at: new Date().toISOString() }).eq("id", o.id);
+    }
+  }
+
   const parts = [];
   if (replies) parts.push(`${replies} repl${replies === 1 ? "y" : "ies"}`);
   if (sent + matchedDrafts) parts.push(`${sent + matchedDrafts} sent`);
   const summary = parts.length ? "Last sync logged " + parts.join(", ") : (prevGmail.summary || "Nothing new");
   await sb.from("crm_settings").upsert({ id: "gmail", data: { lastRun: new Date().toISOString(), summary, source: "apps-script" }, updated_at: new Date().toISOString() });
-  return json({ ok: true, sent, matchedDrafts, replies, skipped, leads: [...new Set(touched)].length });
+  return json({ ok: true, sent, matchedDrafts, replies, skipped, scheduled, leads: [...new Set(touched)].length });
 });

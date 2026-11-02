@@ -334,6 +334,12 @@ tr.click:hover td{background:#FAF9F7}
 .board{gap:14px}
 .colk{flex:0 0 280px;background:#FAF9F7;border:1px solid var(--line);border-radius:12px}
 .colk.empty{flex:0 0 150px}
+.main>.wrap:has(.board-wrap){max-width:none}
+@media (min-width:1500px){.colk:not(.empty){flex:1 0 280px;max-width:380px}.colk{max-height:calc(100vh - 200px)}}
+.colk.virt .colk-h b{font-weight:600}
+.colk.virt .colk-h .hint{flex-basis:100%;font-size:11px;color:var(--ink-3);font-weight:400}
+.card .stg{font-size:11px;color:var(--ink-3)}
+.card .sched{font-size:12px;color:#4A5A8A;font-weight:500}
 .colk-h{border-top:0!important;border-radius:12px 12px 0 0;padding:11px 12px;gap:8px;align-items:center;justify-content:flex-start;border-bottom:1px solid var(--line)}
 .colk-h b{font-size:13px;font-weight:600}
 .colk-h b::before{width:8px;height:8px}
@@ -831,14 +837,30 @@ function viewBoard(p){
   const head=`<div class="head"><div><h1>${p==='email'?'Email marketing':'Websites'}</h1><p>${open.length} open · ${val}${gstNote()}</p></div>
     <div class="actions"><span class="seg"><button data-act="bmode" data-m="board" class="${S.boardMode==='board'?'on':''}">Board</button><button data-act="bmode" data-m="table" class="${S.boardMode==='table'?'on':''}">Table</button></span><button class="btn primary" data-act="add-lead" data-p="${p}">+ New lead</button></div></div>${filterBar(false)}`;
   if(S.boardMode==='table') return head+oppTable(os,p);
-  const shown=S.showEmpty?st:st.filter(x=>os.some(o=>o.stage===x));
-  const hidden=st.length-shown.length;
-  return head+`${hidden||S.showEmpty?`<div style="display:flex;justify-content:flex-end;margin-top:-8px"><button class="btn sm ghost" data-act="toggle-empty">${S.showEmpty?'Hide empty stages':'Show '+hidden+' empty stage'+(hidden===1?'':'s')}</button></div>`:''}<div class="board-wrap" data-keep="board-${p}"><div class="board">${(shown.length?shown:st).map(s=>{
-    const inS=os.filter(o=>o.stage===s).sort((a,b)=>(ROLE_RANK[b.priority==='high'?1:0])-(a.priority==='high'?1:0)||(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  const col=o=>boardCol(o);
+  const cols=boardCols(p,st);
+  const shown=S.showEmpty?cols:cols.filter(x=>os.some(o=>col(o)===x));
+  const hidden=cols.length-shown.length;
+  return head+`${hidden||S.showEmpty?`<div style="display:flex;justify-content:flex-end;margin-top:-8px"><button class="btn sm ghost" data-act="toggle-empty">${S.showEmpty?'Hide empty stages':'Show '+hidden+' empty stage'+(hidden===1?'':'s')}</button></div>`:''}<div class="board-wrap" data-keep="board-${p}"><div class="board">${(shown.length?shown:cols).map(s=>{
+    const inS=os.filter(o=>col(o)===s).sort((a,b)=>(ROLE_RANK[b.priority==='high'?1:0])-(a.priority==='high'?1:0)||(b.updatedAt||'').localeCompare(a.updatedAt||''));
     const sum=p==='email'?inS.reduce((t,o)=>t+(+o.mrr||0),0):inS.reduce((t,o)=>t+(+o.value||0),0);
-    return `<section class="colk${inS.length?'':' empty'}" data-stage="${esc(s)}" data-pipe="${p}" style="--sc:${stageColor(s)}"><div class="colk-h"><b>${esc(s)}</b><span class="cnt">${inS.length}</span><span class="sum">${sum?money(sum):''}</span></div><div class="colk-b" data-keep="col-${p}-${slug(s)}">${inS.map(o=>cardHtml(o)).join('')||'<div class="empty" style="padding:6px 4px">Empty</div>'}</div></section>`;
+    const v=VIRT[s];
+    return `<section class="colk${inS.length?'':' empty'}${v?' virt':''}" data-stage="${esc(s)}" data-pipe="${p}"${v?' data-virt="1"':''} style="--sc:${v?v.color:stageColor(s)}"><div class="colk-h" ${v?`title="${esc(v.tip)}"`:''}><b>${esc(s)}</b><span class="cnt">${inS.length}</span><span class="sum">${sum?money(sum):''}</span>${v&&inS.length?`<span class="hint">${esc(v.hint)}</span>`:''}</div><div class="colk-b" data-keep="col-${p}-${slug(s)}">${inS.map(o=>cardHtml(o)).join('')||'<div class="empty" style="padding:6px 4px">Empty</div>'}</div></section>`;
   }).join('')}</div></div>`;
 }
+/* Opened / Visited: display-only columns between the outreach stages and Replied, filled from tracking (o.track).
+   The real stage is untouched, so the Gmail sync and follow-up timing keep working. Visited beats Opened. */
+const VIRT={
+  'Scheduled':{color:'#6E7FB0',hint:'Queued in Gmail',tip:'Scheduled to send from Gmail (Gmail sync reads your Scheduled folder every 10 minutes). Moves to Outreach sent once it goes.'},
+  'Opened':{color:'#C9A227',hint:'Approx. Apple Mail can auto-open',tip:'Opened the email (preview image loaded) but has not visited the showcase. Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images.'},
+  'Visited':{color:'#2E7D5B',hint:'Looked at their showcase',tip:'Visited their showcase from the tracked link. This is the real interest signal.'}
+};
+const schedAt = o => { const t=Date.parse(o&&o.scheduledAt||''); return t&&t>Date.now()-3600e3?t:0; };
+const schedTxt = o => { const t=schedAt(o); if(!t) return ''; try{ return new Date(t).toLocaleString('en-AU',{timeZone:'Australia/Perth',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(_){ return ''; } };
+function boardCol(o){ if(o.pipeline==='email'&&stageRole(o.stage)==='pre'&&schedAt(o)) return 'Scheduled'; if(o.pipeline!=='email'||stageRole(o.stage)!=='out') return o.stage; const t=o.track||{}; if(!t.sentAt) return o.stage;
+  if(t.visits||t.clicks) return 'Visited'; if(t.opens) return 'Opened'; return o.stage; }
+function boardCols(p,st){ if(p!=='email') return st; let c=[...st]; const o=c.findIndex(x=>stageRole(x)==='out'); if(o>-1) c.splice(o,0,'Scheduled');
+  const i=c.findIndex(x=>stageRole(x)==='replied'); if(i>-1) c.splice(i,0,'Opened','Visited'); return c; }
 function cardHtml(o){
   const c=S.companies[o.companyId]||{};
   const od=o.nextFollowUp&&o.nextFollowUp<today();
@@ -847,6 +869,8 @@ function cardHtml(o){
   return `<article class="card ${o.pipeline}" style="--sc:${stageColor(o.stage)}" draggable="true" data-opp="${o._id}" data-act="open" data-id="${o.companyId}">
     <div class="top"><span class="name">${esc(c.name||'Untitled')}</span>${o.priority==='high'?'<span class="tag-high">High</span>':''}</div>
     <div class="sub">${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
+    ${boardCol(o)!==o.stage&&o.stage!=='Outreach sent'&&boardCol(o)!=='Scheduled'?`<div class="stg">${esc(o.stage)}</div>`:''}
+    ${schedAt(o)?`<div class="sched" title="${esc(o.scheduledSubject||'')}">${stageRole(o.stage)==='pre'?'Sends':'Follow-up sends'} ${esc(schedTxt(o))}</div>`:''}
     ${trkLine(o)?`<div class="trk">${hotPill(o)}<span>${esc(trkLine(o))}</span></div>`:''}
     <div class="foot"><span class="val">${val||'&nbsp;'}</span>${o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
     ${links?`<div class="links">${links}</div>`:''}
@@ -1230,7 +1254,7 @@ let dragId=null;
 document.addEventListener('dragstart',e=>{ const c=e.target.closest&&e.target.closest('.card'); if(!c) return; dragId=c.dataset.opp; c.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',dragId);}catch(_){} });
 document.addEventListener('dragend',e=>{ document.querySelectorAll('.dragging,.drop').forEach(x=>x.classList.remove('dragging','drop')); });
 document.addEventListener('dragover',e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); document.querySelectorAll('.colk.drop').forEach(x=>x!==col&&x.classList.remove('drop')); col.classList.add('drop'); });
-document.addEventListener('drop',async e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); const id=dragId; dragId=null; col.classList.remove('drop'); const st=col.dataset.stage; if(S.opps[id]&&S.opps[id].stage!==st){ await moveStage(id,st); toast('Moved to '+st); } });
+document.addEventListener('drop',async e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); const id=dragId; dragId=null; col.classList.remove('drop'); if(col.dataset.virt){ toast(col.dataset.stage+' fills itself from tracking'); return; } const st=col.dataset.stage; if(S.opps[id]&&S.opps[id].stage!==st){ await moveStage(id,st); toast('Moved to '+st); } });
 
 /* ---------- create helpers ---------- */
 function findDupe(name,email,web){
