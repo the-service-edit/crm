@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call Sheet: Ruby's</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{--ink:#1B1512;--paper:#F7F4EC;--brown:#3A2E25;--off:#F1EDE2;--mute:#6B5F54;--line:#DED6C8;--good:#3F6B45;--bad:#A2412C;--field:#fff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Geist,'Helvetica Neue',Arial,sans-serif;padding-bottom:96px}
+.band{background:var(--brown);color:var(--off)}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+header .wrap{padding-block:20px 26px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#D9D1C2}
+.top a{color:#D9D1C2}
+h1{margin:16px 0 6px;font-size:clamp(30px,5vw,46px);line-height:1;letter-spacing:-.03em;text-transform:uppercase;font-weight:600}
+.meta{font-size:15px;line-height:1.55;color:#E6DFD2}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.links a{color:var(--off);text-decoration:none;font-size:13px;font-weight:500;border:1px solid #6b5b4e;border-radius:999px;padding:7px 12px}
+.auth{background:#F3E2D9;color:var(--bad);font-size:14px;line-height:1.5;padding:12px 16px;border-radius:12px;margin:18px 0 0;display:none}
+.auth a{color:var(--bad);font-weight:600}
+section{padding-top:34px}
+.num{font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+h2{margin:4px 0 12px;font-size:24px;letter-spacing:-.02em;font-weight:600}
+.say{background:#EDE7DA;border-radius:14px;padding:14px 16px;font-size:15px;line-height:1.55;margin:0 0 14px}
+.say p{margin:0 0 8px}.say p:last-child{margin:0}
+.say b{font-weight:600}
+.q{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.q label{display:block;font-weight:600;font-size:16px;line-height:1.4}
+.q .why{display:block;font-size:13.5px;line-height:1.45;color:var(--mute);margin:3px 0 10px;font-weight:400}
+textarea,input,select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:76px;resize:vertical;line-height:1.45}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--brown);outline-offset:1px;background:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.4;padding:6px 0}
+.chk input{width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--brown)}
+table{width:100%;border-collapse:collapse;font-size:14.5px;line-height:1.45;margin-bottom:12px}
+td,th{text-align:left;vertical-align:top;padding:10px 10px 10px 0;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:600}
+td:first-child{font-weight:600;width:34%}
+.dont{font-size:14px;line-height:1.55;color:var(--mute)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--brown);color:var(--off);padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px))}
+.bar .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#status{font-size:13.5px;color:#D9D1C2}
+#status.ok{color:#B9D8B4}#status.err{color:#F2B8A8}
+button{font:inherit;font-weight:600;font-size:15px;border:0;border-radius:999px;padding:12px 20px;background:var(--off);color:var(--brown);cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+@media (max-width:620px){.grid2{grid-template-columns:1fr}td,th{display:block;width:auto!important;padding:4px 0}tr{display:block;padding:8px 0;border-bottom:1px solid var(--line)}td,th{border:0}thead{display:none}}
+</style>
+</head>
+<body>
+<header class="band"><div class="wrap">
+<div class="top"><span>TSE CRM · Call sheet</span><a href="../#open=c-rubys-wine-shop">Open in CRM</a></div>
+<h1>Ruby&#x27;s Wine Shop</h1>
+<div class="meta">Tamara · Albion, Brisbane · Wed 4 Nov, 10am her time (8am Perth) · 15 minutes<br>She asked about: <b>email designs</b> and <b>costs</b>. She has 35 subscribers and paused the newsletter because it&#x27;s all manual.</div>
+<div class="links"><a href="https://rubys-wine-shop.theserviceedit.com/proposal/" target="_blank" rel="noopener">Proposal</a><a href="https://rubys-wine-shop.theserviceedit.com/?qa=1" target="_blank" rel="noopener">Showcase (3 emails)</a><a href="https://rubyswineshop.com.au/pages/gift-boxes" target="_blank" rel="noopener">Her gift boxes</a></div>
+<div class="auth" id="auth">You&#x27;re not signed in to the CRM on this device, so answers are only saved here for now. <a href="../">Sign in to the CRM</a>, then come back to this page.</div>
+</div></header>
+
+<main class="wrap">
+<section>
+<div class="num">1 · Open · 1 min</div>
+<h2>Congrats, then set the plan</h2>
+<div class="say"><p>Congratulate her on the wedding.</p><p>&ldquo;I&#x27;ll ask a few quick questions about how the newsletter works now, then show you the designs and what it costs.&rdquo;</p></div>
+</section>
+
+<section>
+<div class="num">2 · Ask · 5 min</div>
+<h2>Six questions</h2>
+<div class="q"><label for="esp">What do you send the newsletter from now?</label><span class="why">Shopify Email, Mailchimp, something else? Decides where we build.</span><textarea id="esp" data-k="esp"></textarea></div>
+<div class="q"><label for="weekly">Walk me through a week. What do you update by hand, and how long does it take?</label><span class="why">Let her describe the pain. That&#x27;s what you&#x27;re selling.</span><textarea id="weekly" data-k="weekly"></textarea></div>
+<div class="q"><label for="quiz">How does quiz night booking work, and does it always book out? When&#x27;s December&#x27;s?</label><span class="why">Biggest lever and hardest to deliver. Her site still says 14 October.</span><textarea id="quiz" data-k="quiz"></textarea></div>
+<div class="q"><label for="xmas">How are the Christmas boxes going so far?</label><span class="why">Selling: the emails are an easy yes. Slow: they matter more.</span><textarea id="xmas" data-k="xmas"></textarea></div>
+<div class="q"><label for="pos">What do you use at the counter to take payments?</label><span class="why">If it sends digital receipts, that&#x27;s another way onto the list.</span><textarea id="pos" data-k="pos"></textarea></div>
+<div class="q"><label for="goal">If this worked, what would it look like for you in three months?</label><span class="why">Her words here become your close.</span><textarea id="goal" data-k="goal"></textarea></div>
+</section>
+
+<section>
+<div class="num">3 · Her question: designs · 3 min</div>
+<h2>Show, don&#x27;t describe</h2>
+<div class="say"><p>Open the showcase while on the call. Welcome email: &ldquo;This goes to everyone who joins, automatically.&rdquo; Then the Christmas email.</p><p>Say you&#x27;ve updated it to her real cut-offs, <b>6 and 13 December</b>.</p><p>Then the weekly template: &ldquo;Same blocks every week, you fill in the pours and the dates. That&#x27;s what fixes the manual work.&rdquo;</p></div>
+<div class="q"><label for="designs">Her reaction to the designs</label><span class="why">What she liked, anything she&#x27;d change.</span><textarea id="designs" data-k="designs"></textarea></div>
+</section>
+
+<section>
+<div class="num">4 · Her question: costs · 3 min</div>
+<h2>Say it plainly, then stop</h2>
+<div class="say"><p>&ldquo;For where you are, with 35 people, a monthly retainer doesn&#x27;t make sense yet. I&#x27;d rather build you the system once.&rdquo;</p><p>&ldquo;<b>$1,200 plus GST, one-off.</b> $600 to start, $600 when the Christmas email goes out.&rdquo;</p><p>&ldquo;That covers getting people onto the list from the tables, the quiz, checkout and Instagram, the welcome emails, your weekly template, and two Christmas emails I write and send for you.&rdquo;</p><p>&ldquo;After that it&#x27;s yours. If the list gets to about 500, we can talk about me doing it monthly. No lock-in.&rdquo;</p><p>If she hesitates: five Explorer&#x27;s boxes are $1,300 in sales. Don&#x27;t call it profit.</p></div>
+<div class="q"><label for="price">Her reaction to the price</label><textarea id="price" data-k="price"></textarea></div>
+<div class="grid2">
+<div class="q"><label for="fee">Agreed or quoted fee (A$, ex GST)</label><span class="why">Leave at 1200 unless the scope changed.</span><input id="fee" data-k="fee" inputmode="numeric" value="1200"></div>
+<div class="q"><label for="scope">Scope changes agreed</label><span class="why">e.g. capture and Christmas now, the rest in January.</span><input id="scope" data-k="scope"></div>
+</div>
+</section>
+
+<section>
+<div class="num">5 · If she pushes back</div>
+<h2>Answers ready</h2>
+<table>
+<thead><tr><th>She says</th><th>You say</th></tr></thead>
+<tbody>
+<tr><td>&ldquo;Can&#x27;t I just do this myself?&rdquo;</td><td>&ldquo;You can. The template is built so you do the weekly email yourself. What I set up is the fiddly bit: the forms, the automations and getting the quiz onto the list.&rdquo;</td></tr>
+<tr><td>&ldquo;It&#x27;s a lot right now.&rdquo;</td><td>Offer capture and Christmas now, the rest in January. Don&#x27;t drop the price for the same scope.</td></tr>
+<tr><td>&ldquo;Only 35 people, is email worth it?&rdquo;</td><td>&ldquo;That&#x27;s why we start with the list, not more emails. Your quiz books out, so the people are there. They&#x27;re just not on the list.&rdquo;</td></tr>
+<tr><td>&ldquo;What about Instagram?&rdquo;</td><td>&ldquo;Keep it. Email is the people you don&#x27;t have to fight the algorithm to reach.&rdquo;</td></tr>
+</tbody>
+</table>
+<div class="q"><label for="objections">What she pushed back on</label><textarea id="objections" data-k="objections"></textarea></div>
+<p class="dont">Don&#x27;t: mention other clients, promise subscriber numbers, or offer anything free to drink as a sign-up reward.</p>
+</section>
+
+<section>
+<div class="num">6 · Close · 2 min</div>
+<h2>Next step</h2>
+<div class="say"><p>&ldquo;I&#x27;ll send you the full proposal this afternoon. If it looks right, we can start Monday the 9th and have everything live before your Christmas rush.&rdquo;</p><p>Ask for Shopify collaborator access and the quiz details.</p></div>
+<div class="grid2">
+<div class="q"><label for="outcome">How did it go?</label><select id="outcome" data-k="outcome"><option value="">Choose…</option><option value="interested">Interested</option><option value="question">Has questions</option><option value="not now">Not now</option><option value="no">Not interested</option><option value="meeting">Booked another call</option></select></div>
+<div class="q"><label for="followup">Follow-up date</label><input id="followup" data-k="followup" type="date"></div>
+</div>
+<div class="q"><label for="next">Agreed next step</label><span class="why">Becomes the next action on her card in the CRM.</span><input id="next" data-k="next" placeholder="e.g. Send proposal today, she replies by Friday"></div>
+<div class="q"><label for="other">Anything else</label><textarea id="other" data-k="other"></textarea></div>
+<div class="q">
+<label class="chk"><input type="checkbox" id="sentProposal" data-k="sentProposal"> I&#x27;ve sent her the proposal (moves her to Proposal sent)</label>
+<label class="chk"><input type="checkbox" id="access" data-k="access"> She&#x27;ll accept Shopify collaborator access</label>
+<label class="chk"><input type="checkbox" id="quizDetails" data-k="quizDetails"> Got the quiz details</label>
+</div>
+</section>
+</main>
+
+<div class="bar"><div class="wrap"><span id="status">Not saved yet</span><button id="save" type="button">Save to CRM</button></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+var SB_URL='https://rxwjactnfsrakpagbiit.supabase.co', SB_KEY='sb_publishable_G97KoWEPj9kSSf92fROYgQ_AmbtXeeK';
+var CID='c-rubys-wine-shop', OID='o-rubys-wine-shop-email', AID='a-call-rubys-wine-shop-20261104', LS='tse-call-rubys-wine-shop';
+var PAGE='https://the-service-edit.github.io/crm/call/rubys-wine-shop.html';
+var LABELS={esp:'Email tool now',weekly:'Weekly workload',quiz:'Quiz night',xmas:'Christmas boxes so far',pos:'Payments at the counter',goal:'Three-month goal',designs:'Reaction to designs',price:'Reaction to price',fee:'Fee (A$ ex GST)',scope:'Scope changes',objections:'Pushback',outcome:'Outcome',followup:'Follow-up date',next:'Next step',other:'Other notes',access:'Shopify collaborator access',quizDetails:'Quiz details received',sentProposal:'Proposal sent'};
+var els=[].slice.call(document.querySelectorAll('[data-k]'));
+var st=document.getElementById('status'), btn=document.getElementById('save');
+var sb=null, user=null, dirty=false, timer=null, saving=false, createdAt=null;
+
+function status(t,c){st.textContent=t;st.className=c||'';}
+function read(){var o={};els.forEach(function(e){o[e.dataset.k]=e.type==='checkbox'?e.checked:e.value.trim();});return o;}
+function fill(o){if(!o)return;els.forEach(function(e){var v=o[e.dataset.k];if(v===undefined)return;if(e.type==='checkbox')e.checked=!!v;else e.value=v;});}
+function local(o){try{localStorage.setItem(LS,JSON.stringify(o));}catch(x){}}
+function fromLocal(){try{return JSON.parse(localStorage.getItem(LS)||'null');}catch(x){return null;}}
+function body(a){
+  var lines=['Discovery call with Tamara, Ruby\'s Wine Shop','Call sheet: '+PAGE,''];
+  Object.keys(LABELS).forEach(function(k){var v=a[k];if(v===''||v===false||v===undefined)return;lines.push(LABELS[k]+': '+(v===true?'Yes':v));});
+  return lines.join('\n');
+}
+function rank(stage){var n=String(stage||'').toLowerCase();if(/\bwon\b/.test(n))return 6;if(/lost/.test(n))return -1;if(/negotiat/.test(n))return 5;if(/proposal/.test(n))return 4;if(/meeting|discovery|call booked/.test(n))return 3;if(/repl|interested/.test(n))return 2;if(/sent|follow.?up/.test(n))return 1;return 0;}
+
+async function save(){
+  if(saving)return; var a=read(); local(a);
+  if(!sb||!user){status('Saved on this device. Sign in to the CRM to send it there.','err');return;}
+  saving=true;btn.disabled=true;status('Saving…');
+  try{
+    var now=new Date().toISOString();
+    // 1. the call itself, one row that updates in place
+    var act={companyId:CID,oppId:OID,type:'call',outcome:a.outcome||'',subject:'Discovery call',body:body(a),answers:a,callSheet:PAGE,at:createdAt||now,createdAt:createdAt||now,updatedAt:now};
+    var r1=await sb.from('crm_acts').upsert({id:AID,company_id:CID,data:act,updated_at:now}); if(r1.error)throw r1.error;
+    createdAt=act.createdAt;
+    // 2. the opportunity, merged into what is already there
+    var r2=await sb.from('crm_opps').select('data').eq('id',OID).single(); if(r2.error)throw r2.error;
+    var o=r2.data.data||{}, patch={lastContact:createdAt,updatedAt:now,callSheet:PAGE};
+    if(a.followup)patch.nextFollowUp=a.followup;
+    if(a.next)patch.nextAction=a.next;
+    var fee=parseFloat(String(a.fee).replace(/[^0-9.]/g,'')); if(fee>0){patch.setupFee=fee;patch.value=fee;}
+    if(a.esp&&a.esp.length<=40)patch.platform=a.esp;
+    var target=a.sentProposal?'Proposal sent':'Discovery call', moved=null;
+    if(a.outcome!=='no'&&rank(target)>rank(o.stage)){moved=o.stage;patch.stage=target;patch.stageChangedAt=now;if(rank(target)>(o.maxRank||0))patch.maxRank=rank(target);}
+    var r3=await sb.from('crm_opps').upsert({id:OID,company_id:CID,data:Object.assign({},o,patch),updated_at:now}); if(r3.error)throw r3.error;
+    if(moved!==null){await sb.from('crm_acts').upsert({id:'a-stage-rubys-'+Date.now().toString(36),company_id:CID,data:{companyId:CID,oppId:OID,type:'stage',subject:(moved||'—')+' → '+target,body:'From the call sheet',at:now,createdAt:now},updated_at:now});}
+    dirty=false;status('Saved to CRM '+new Date().toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})+(moved!==null?' · moved to '+target:''),'ok');
+  }catch(e){status('Not saved to CRM: '+(e.message||e)+'. Your answers are kept on this device.','err');}
+  saving=false;btn.disabled=false;
+}
+
+els.forEach(function(e){e.addEventListener(e.tagName==='SELECT'||e.type==='checkbox'||e.type==='date'?'change':'input',function(){dirty=true;local(read());status('Unsaved changes');clearTimeout(timer);timer=setTimeout(save,4000);});});
+btn.addEventListener('click',save);
+window.addEventListener('beforeunload',function(ev){if(dirty){ev.preventDefault();ev.returnValue='';}});
+
+fill(fromLocal());
+(async function(){
+  try{
+    sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:'tse-crm-auth'}});
+    var s=await sb.auth.getSession(); user=s.data&&s.data.session&&s.data.session.user;
+    if(!user){document.getElementById('auth').style.display='block';status('Not signed in: saving on this device only','err');return;}
+    var r=await sb.from('crm_acts').select('data').eq('id',AID).maybeSingle();
+    if(r.data&&r.data.data){createdAt=r.data.data.createdAt;var loc=fromLocal();if(!loc||!dirty){fill(r.data.data.answers);} status('Loaded from CRM','ok');}
+    else status('Signed in. Answers save to the CRM as you type.','ok');
+  }catch(e){status('Could not reach the CRM. Answers are kept on this device.','err');}
+})();
+})();
+</script>
+</body>
+</html>
