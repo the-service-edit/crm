@@ -591,7 +591,7 @@ async function moveStage(id, stage, note){
   if(rank>(o.maxRank||0)) data.maxRank=rank;
   if(role==='won' && !o.wonAt) data.wonAt=nowIso();
   if(role==='lost') data.lostAt=nowIso();
-  if(role==='won'||role==='lost') data.nextFollowUp='';
+  if(role==='won'||role==='lost'){ data.nextFollowUp=''; if(o.onHold) data.onHold=null; }
   await patch('opps',id,data);
   await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:(o.stage||'—')+' → '+stage,body:note||'',at:nowIso(),createdAt:nowIso()});
 }
@@ -935,15 +935,18 @@ function viewBoard(p){
 /* Opened / Visited: display-only columns between the outreach stages and Replied, filled from tracking (o.track).
    The real stage is untouched, so the Gmail sync and follow-up timing keep working. Visited beats Opened. */
 const VIRT={
+  'On hold':{color:'#8C7B6B',hint:'Potential, no rush',tip:'Parked on purpose: still a real lead, just not now. The card shows its real stage and the date to pick it back up. Drag it to any stage, or press Take off hold, to bring it back.'},
   'Scheduled':{color:'#6E7FB0',hint:'Queued in Gmail',tip:'Scheduled to send from Gmail (Gmail sync reads your Scheduled folder every 10 minutes). Moves to Outreach sent once it goes.'},
   'Opened':{color:'#C9A227',hint:'Approx. Apple Mail can auto-open',tip:'Opened the email (preview image loaded) but has not visited the showcase. Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images.'},
   'Visited':{color:'#2E7D5B',hint:'Looked at their showcase',tip:'Visited their showcase from the tracked link. This is the real interest signal.'}
 };
 const schedAt = o => { const t=Date.parse(o&&o.scheduledAt||''); return t&&t>Date.now()-3600e3?t:0; };
 const schedTxt = o => { const t=schedAt(o); if(!t) return ''; try{ return new Date(t).toLocaleString('en-AU',{timeZone:'Australia/Perth',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(_){ return ''; } };
-function boardCol(o){ if(o.pipeline==='email'&&stageRole(o.stage)==='pre'&&schedAt(o)) return 'Scheduled'; if(o.pipeline!=='email'||stageRole(o.stage)!=='out') return o.stage; const t=o.track||{}; if(!t.sentAt) return o.stage;
+const onHold = o => !!(o&&o.onHold&&isActive(o));
+const holdTxt = o => { const d=o&&o.onHold&&o.onHold.revisitOn; return d?'Back '+fmtDay(d):'On hold'; };
+function boardCol(o){ if(onHold(o)) return 'On hold'; if(o.pipeline==='email'&&stageRole(o.stage)==='pre'&&schedAt(o)) return 'Scheduled'; if(o.pipeline!=='email'||stageRole(o.stage)!=='out') return o.stage; const t=o.track||{}; if(!t.sentAt) return o.stage;
   if(t.visits||t.clicks) return 'Visited'; if(t.opens) return 'Opened'; return o.stage; }
-function boardCols(p,st){ if(p!=='email') return st; let c=[...st]; const o=c.findIndex(x=>stageRole(x)==='out'); if(o>-1) c.splice(o,0,'Scheduled');
+function boardCols(p,st){ let c=[...st]; const w=c.findIndex(x=>['won','lost'].includes(stageRole(x))); c.splice(w>-1?w:c.length,0,'On hold'); if(p!=='email') return c; const o=c.findIndex(x=>stageRole(x)==='out'); if(o>-1) c.splice(o,0,'Scheduled');
   const i=c.findIndex(x=>stageRole(x)==='replied'); if(i>-1) c.splice(i,0,'Opened','Visited'); return c; }
 function cardHtml(o){
   const c=S.companies[o.companyId]||{};
@@ -953,10 +956,10 @@ function cardHtml(o){
   return `<article class="card ${o.pipeline}" style="--sc:${stageColor(o.stage)}" draggable="true" data-opp="${o._id}" data-act="open" data-id="${o.companyId}">
     <div class="top"><span class="name">${esc(c.name||'Untitled')}</span>${o.priority==='high'?'<span class="tag-high">High</span>':''}</div>
     <div class="sub">${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
-    ${boardCol(o)!==o.stage&&o.stage!=='Outreach sent'&&boardCol(o)!=='Scheduled'?`<div class="stg">${esc(o.stage)}</div>`:''}
+    ${boardCol(o)!==o.stage&&(o.stage!=='Outreach sent'||onHold(o))&&boardCol(o)!=='Scheduled'?`<div class="stg">${esc(o.stage)}</div>`:''}
     ${schedAt(o)?`<div class="sched" title="${esc(o.scheduledSubject||'')}">${stageRole(o.stage)==='pre'?'Sends':'Follow-up sends'} ${esc(schedTxt(o))}</div>`:''}
     ${trkLine(o)?`<div class="trk">${hotPill(o)}<span>${esc(trkLine(o))}</span></div>`:''}
-    <div class="foot"><span class="val">${val||'&nbsp;'}</span>${o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
+    <div class="foot"><span class="val">${val||'&nbsp;'}</span>${onHold(o)?`<span class="pill ${od||o.nextFollowUp===today()?'p-warn':'p-plain'}" title="${esc((o.onHold&&o.onHold.reason)||'')}">${esc(holdTxt(o))}</span>`:o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
     ${links?`<div class="links">${links}</div>`:''}
   </article>`;
 }
@@ -1155,8 +1158,9 @@ function drawerHtml(c){
 function oppHtml(o){
   const p=o.pipeline;
   return `<div class="opp ${p}" data-opp-fields="${o._id}"><div class="opp-h"><div style="display:flex;gap:8px;align-items:center">${pipePill(p)}<b>${p==='email'?'Email marketing retainer':'Website project'}</b></div>
-    <div class="actions"><button class="btn sm" data-act="won" data-id="${o._id}">Mark won</button><button class="btn sm ghost" data-act="lost" data-id="${o._id}">Mark lost</button></div></div>
+    <div class="actions">${isActive(o)?`<button class="btn sm ghost" data-act="hold" data-id="${o._id}">${onHold(o)?'Take off hold':'Put on hold'}</button>`:''}<button class="btn sm" data-act="won" data-id="${o._id}">Mark won</button><button class="btn sm ghost" data-act="lost" data-id="${o._id}">Mark lost</button></div></div>
   ${trkHtml(o)}
+  ${onHold(o)?`<div class="fields" data-hold-for="${o._id}" style="background:var(--paper-2,#F3EFE6);border-radius:10px;padding:10px;margin:8px 0"><div class="field"><label for="o-hr-${o._id}">On hold until</label><input id="o-hr-${o._id}" type="date" name="revisitOn" value="${esc(o.onHold.revisitOn||'')}"></div><div class="field full"><label for="o-hw-${o._id}">Why it's on hold</label><textarea id="o-hw-${o._id}" name="reason">${esc(o.onHold.reason||'')}</textarea></div></div>`:''}
   <div class="fields">
     <div class="field"><label for="o-st-${o._id}">Stage</label><select id="o-st-${o._id}" data-stage-for="${o._id}">${stages(p).map(s=>`<option ${s===o.stage?'selected':''}>${esc(s)}</option>`).join('')}${stages(p).includes(o.stage)?'':`<option selected>${esc(o.stage)}</option>`}</select></div>
     <div class="field"><label for="o-pr-${o._id}">Priority</label><select id="o-pr-${o._id}" name="priority">${['high','normal','low'].map(x=>`<option value="${x}" ${(o.priority||'normal')===x?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select></div>
@@ -1266,6 +1270,7 @@ document.addEventListener('click', async e=>{
     case 'compose': S.compose={cid:S.open,kind:el.dataset.k}; renderOverlay(); setTimeout(()=>{ const f=document.querySelector('.composer input,.composer textarea'); if(f) f.focus(); },30); break;
     case 'cancel-compose': S.compose=null; renderOverlay(); flush(); break;
     case 'add-opp': { const os=oppsOf(id); const p=os.some(o=>o.pipeline==='email')&&!os.some(o=>o.pipeline==='web')?'web':!os.some(o=>o.pipeline==='email')?'email':'email'; await createOpp(id,p,{}); toast((p==='web'?'Website':'Email')+' deal added'); break; }
+    case 'hold': { const o=S.opps[id]; if(onHold(o)){ await updateOpp(id,{onHold:null, nextFollowUp:today()}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'Off hold',body:'',at:nowIso(),createdAt:nowIso()}); toast('Back in '+o.stage+'. Follow-up set for today'); } else { const back=addDays(today(),60); await updateOpp(id,{onHold:{since:today(),revisitOn:back,reason:''}, nextFollowUp:back}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'On hold until '+fmtDay(back),body:'',at:nowIso(),createdAt:nowIso()}); toast('On hold until '+fmtDay(back)+'. Change the date below'); } break; }
     case 'won': { const o=S.opps[id]; const s=stages(o.pipeline).find(x=>stageRole(x)==='won'); if(s){ await moveStage(id,s,'Marked won'); toast('Marked won. Nice work.'); } break; }
     case 'lost': { const o=S.opps[id]; const s=stages(o.pipeline).find(x=>stageRole(x)==='lost'); if(s){ await moveStage(id,s,'Marked lost'); toast('Marked lost'); } break; }
     case 'mark-sent': { const a=S.acts[id]; await patch('acts',id,{status:'sent',at:nowIso()}); await afterSent(a.companyId,a.oppId,nowIso()); toast('Marked sent. Nudge booked for '+fmtDay(addDays(today(),setting('nudgeDays')))); break; }
@@ -1293,6 +1298,7 @@ document.addEventListener('change', async e=>{
   if(t.dataset.imgFor){ await patch('acts',t.dataset.imgFor,{hasImage:t.checked}); return; }
   const tf=t.closest('[data-task-fields]'); if(tf && t.name){ const v=t.value; if(t.name==='title'&&!v.trim()){ toast('A task needs a name'); return; } await patch('tasks',tf.dataset.taskFields,{[t.name]:t.name==='title'?v.trim():v}); flush(); return; }
   const co=t.closest('[data-co]'); if(co && t.name){ await patch('companies',co.dataset.co,{[t.name]:t.value.trim(),updatedAt:nowIso()}); flush(); return; }
+  const hf=t.closest('[data-hold-for]'); if(hf && t.name){ const id=hf.dataset.holdFor, o=S.opps[id]; const h=Object.assign({},o.onHold||{},{[t.name]:t.value}); const data={onHold:h}; if(t.name==='revisitOn'&&t.value) data.nextFollowUp=t.value; await updateOpp(id,data); flush(); return; }
   const of=t.closest('[data-opp-fields]'); if(of && t.name){ let v=t.value; if(['mrr','setupFee','value','retainerScore','higgsCredits'].includes(t.name)) v=t.value===''?'':Number(t.value); const data={[t.name]:v}; if(t.name==='proposalStatus'&&v==='Sent'&&!S.opps[of.dataset.oppFields].proposalSentAt) data.proposalSentAt=nowIso(); await updateOpp(of.dataset.oppFields,data); flush(); return; }
   if(t.id==='file-up'){ const f=t.files[0]; t.value=''; if(S.modal&&S.modal.type==='doc'&&f){ S.modal.file=f; const n=$('#nd-name'); const nm=$('#nd-file'); if(nm) nm.textContent=f.name; if(n&&!n.value) n.value=f.name.replace(/\.[^.]+$/,''); } return; }
   if(t.id==='csv-up'){ const f=t.files[0]; t.value=''; if(f) importCsv(await f.text()); return; }
@@ -1359,7 +1365,7 @@ let dragId=null;
 document.addEventListener('dragstart',e=>{ const c=e.target.closest&&e.target.closest('.card'); if(!c) return; dragId=c.dataset.opp; c.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',dragId);}catch(_){} });
 document.addEventListener('dragend',e=>{ document.querySelectorAll('.dragging,.drop').forEach(x=>x.classList.remove('dragging','drop')); });
 document.addEventListener('dragover',e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); document.querySelectorAll('.colk.drop').forEach(x=>x!==col&&x.classList.remove('drop')); col.classList.add('drop'); });
-document.addEventListener('drop',async e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); const id=dragId; dragId=null; col.classList.remove('drop'); if(col.dataset.virt){ toast(col.dataset.stage+' fills itself from tracking'); return; } const st=col.dataset.stage; if(S.opps[id]&&S.opps[id].stage!==st){ await moveStage(id,st); toast('Moved to '+st); } });
+document.addEventListener('drop',async e=>{ const col=e.target.closest&&e.target.closest('.colk'); if(!col||!dragId) return; e.preventDefault(); const id=dragId; dragId=null; col.classList.remove('drop'); const o=S.opps[id]; if(col.dataset.stage==='On hold'){ if(o&&!onHold(o)&&isActive(o)){ const back=addDays(today(),60); await updateOpp(id,{onHold:{since:today(),revisitOn:back,reason:''}, nextFollowUp:back}); toast('On hold until '+fmtDay(back)+'. Open the lead to change the date'); } return; } if(col.dataset.virt){ toast(col.dataset.stage+' fills itself from tracking'); return; } const st=col.dataset.stage; if(o&&onHold(o)) await updateOpp(id,{onHold:null}); if(o&&o.stage!==st){ await moveStage(id,st); toast('Moved to '+st); } else if(o&&onHold(o)) toast('Taken off hold'); });
 
 /* ---------- create helpers ---------- */
 function findDupe(name,email,web){
