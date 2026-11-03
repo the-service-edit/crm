@@ -96,6 +96,7 @@ a{color:inherit}
 .row .t{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .sub{color:var(--ink-3);font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row.click{cursor:pointer}
+.row.lc{align-items:start}.lc-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .row.click:hover .t{text-decoration:underline;text-decoration-color:var(--line-2)}
 .empty{color:var(--ink-3);padding:14px 0;font-size:13px}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:-4px 0 6px}
@@ -896,9 +897,11 @@ function viewToday(){
   const calls=f.waiting.filter(x=>ageDays(x.last.at)>=setting('callDays'));
   const staleProps=m.props.filter(o=>ageDays(o.stageChangedAt)>=5);
   const tasksToday=list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today());
+  const lastCalls=list(S.opps).filter(o=>isActive(o)&&!onHold(o)&&o.lastCall&&o.lastCall.dueOn&&o.lastCall.dueOn<=today()).sort((a,b)=>a.lastCall.dueOn.localeCompare(b.lastCall.dueOn));
   const hot=list(S.opps).filter(o=>isActive(o)&&isHot(o)).sort((a,b)=>(b.track.lastSeenAt||'').localeCompare(a.track.lastSeenAt||''));
   const nba=[];
   if(hot.length) nba.push(['hot',`<b>${hot.length}</b> ${hot.length===1?'lead has':'leads have'} been on ${hot.length===1?'their':'their'} showcase in the last 48 hours: call while it's warm`]);
+  if(lastCalls.length) nba.push(['lastcalls',`<b>${lastCalls.length}</b> last call${lastCalls.length===1?'':'s'}: no reply or visit since the follow-up. No answer = Lost`]);
   if(unans.length) nba.push(['replies',`<b>${unans.length}</b> ${unans.length===1?'prospect has':'prospects have'} replied and ${unans.length===1?'is':'are'} waiting on you`]);
   if(f.overdue.length) nba.push(['due',`<b>${f.overdue.length}</b> follow-up${f.overdue.length===1?' is':'s are'} overdue`]);
   if(calls.length) nba.push(['calls',`<b>${calls.length}</b> ${calls.length===1?'lead is':'leads are'} ${setting('callDays')}+ days with no reply: call ${calls.length===1?'them':'them'}`]);
@@ -907,8 +910,8 @@ function viewToday(){
   if(staleProps.length) nba.push(['props',`<b>${staleProps.length}</b> proposal${staleProps.length===1?' has':'s have'} sat 5+ days without movement`]);
   if(f.none.length) nba.push(['none',`<b>${f.none.length}</b> live deal${f.none.length===1?' has':'s have'} no next step booked`]);
   const greet = new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening';
-  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps, hot};
-  const tabNames=[['hot','Hot'],['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
+  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps, hot, lastcalls:lastCalls};
+  const tabNames=[['hot','Hot'],['lastcalls','Last calls'],['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
   const cur=tabs[S.todayTab]||tabs.due;
   return `<div class="head"><div><h1>${greet}, Mel.</h1><p>${fmtDay(today())} · ${dueCount()?`<span class="hl">${dueCount()} follow-up${dueCount()===1?'':'s'} due</span>`:'Nothing overdue'} · ${tasksToday.length} task${tasksToday.length===1?'':'s'} today</p></div>
     <div class="actions"><button class="btn" data-act="add-task">+ Task</button><button class="btn primary" data-act="add-lead">+ New lead</button></div></div>
@@ -945,6 +948,8 @@ function todayRows(tab,items){
   if(!items.length) return '<div class="empty">Nothing here right now.</div>';
   return items.slice(0,40).map(it=>{
     if(tab==='hot'){ const o=it; const c=S.companies[o.companyId]||{}; return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${o.callAt?(()=>{const k=fmtCall(o.callAt,o.callTz);return `<b>${new Date(o.callAt)<=new Date()?'Call now':'Call '+esc(k.day)+', '+esc(k.time)+(k.theirs?' ('+esc(k.theirs)+')':'')}</b> · `;})():''}${esc(o.track.hotReason||'')} · ${esc(trkLine(o))}${c.phone?' · '+phoneLink(c,'tel'):''}${theirTime(c)?' · '+esc(theirTime(c)):''}</div></div><span class="pill p-good">${esc(whenTxt(o.track.lastSeenAt))}</span></div>`; }
+    if(tab==='lastcalls'){ const o=it; const c=S.companies[o.companyId]||{}; const lostOn=addDays(o.lastCall.dueOn,3); const ig=c.instagram?String(c.instagram).replace(/^https?:\/\/(www\.)?instagram\.com\//,'').replace(/\/$/,'').replace(/^@?/,'@'):'';
+      return `<div class="row click lc" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">Follow-up sent ${fmtDay(o.lastCall.followUpAt)} · ${c.phone?phoneLink(c,'tel'):'No public number'+(ig?' · DM '+esc(ig):'')}${theirTime(c)?' · '+esc(theirTime(c)):''}</div><div class="lc-btns"><button class="btn sm" data-act="lc-lost" data-id="${o._id}">No answer: mark Lost</button><button class="btn sm ghost" data-act="lc-spoke" data-id="${o._id}">Spoke to them</button></div></div><span class="pill p-warn" title="Moves to Lost on its own if nothing comes back">Lost ${fmtDay(lostOn)}</span></div>`; }
     if(tab==='drafts'){ const a=it; return `<div class="row click" data-act="open" data-id="${a.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(a.companyId))}</div><div class="sub">Draft · ${esc(a.subject||'(no subject)')}</div></div><span class="pill p-plain">${fmtDay(a.at)}</span></div>`; }
     if(tab==='replies'){ const {c,i}=it; return `<div class="row click" data-act="open" data-id="${c._id}"><div style="min-width:0"><div class="t">${esc(c.name)}</div><div class="sub">Replied ${fmtDay(i.at)} · ${esc(i.subject||i.body||'')}</div></div><span class="pill ${i.outcome==='interested'?'p-good':'p-warn'}">${esc(i.outcome||'Reply')}</span></div>`; }
     if(tab==='waiting'||tab==='nudges'||tab==='calls'){ const {o,last}=it; const d=ageDays(last.at); return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(o.companyId))} ${pipePill(o.pipeline)}</div><div class="sub">Sent ${fmtDay(last.at)} · ${esc(last.subject||'')}</div></div><span class="pill ${d>=setting('callDays')?'p-bad':d>=setting('nudgeDays')?'p-warn':'p-plain'}">${d}d · ${d>=setting('callDays')?'Call':d>=setting('nudgeDays')?'Nudge':'Wait'}</span></div>`; }
@@ -982,7 +987,7 @@ function nextHtml(o){
   if(!na){ na = o.stage==='Outreach sent'?'Send the nudge email': /first follow/i.test(o.stage)?'Send the second follow-up': /second follow/i.test(o.stage)?'Call them': role==='replied'?'Reply and book a call': role==='meeting'?'Send the proposal': role==='proposal'?'Follow up the proposal':''; }
   if(!na) return '';
   const short=na.split(/,\s*24h after|\.\s/)[0].slice(0,90);
-  return `<div class="next" title="${esc(na)}">${/^call/i.test(short)?ICON_PHONE:ICON_NEXT}<span>${esc(short)}</span></div>`;
+  return `<div class="next" title="${esc(na)}">${/^(last )?call/i.test(short)?ICON_PHONE:ICON_NEXT}<span>${esc(short)}</span></div>`;
 }
 /* Opening a sent, tracked outreach email in Gmail loads the preview image and logs a fake open, so the Gmail button asks first. */
 function gmWarn(a){ if(!a||a.type!=='email'||isInbound(a)) return '';
@@ -1399,6 +1404,14 @@ document.addEventListener('click', async e=>{
     case 'close': S.open=null; S.compose=null; renderOverlay(); break;
     case 'close-modal': S.modal=null; renderOverlay(); flush(); break;
     case 'ttab': S.todayTab=el.dataset.k; render(); break;
+    case 'lc-lost': { const o=S.opps[id]; if(!o) break; const s=stages(o.pipeline).find(x=>stageRole(x)==='lost'); if(!s) break;
+      await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'call',direction:'out',subject:'Last call: no answer',body:'',at:nowIso(),createdAt:nowIso()});
+      await moveStage(id,s,'Last call: no answer');
+      await updateOpp(id,{lostReason:'No answer on the last call',lastCall:null,nextAction:''}); toast('Marked Lost'); break; }
+    case 'lc-spoke': { const o=S.opps[id]; if(!o) break; const s=stages(o.pipeline).find(x=>stageRole(x)==='replied');
+      await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'call',direction:'out',subject:'Last call: spoke to them',body:'',at:nowIso(),createdAt:nowIso()});
+      if(s) await moveStage(id,s,'Spoke on the last call');
+      await updateOpp(id,{lastCall:null,nextFollowUp:today(),nextAction:'Spoke on the last call: add notes and book the 15 minutes'}); S.open=o.companyId; renderOverlay(); toast('Moved to '+(s||'Replied')+'. Add your call notes'); break; }
     case 'otab': S.outTab=el.dataset.k; render(); break;
     case 'tasktab': S.taskTab=el.dataset.k; render(); break;
     case 'hpipe': S.boardPipe=el.dataset.p; render(); break;
