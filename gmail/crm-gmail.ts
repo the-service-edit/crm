@@ -31,6 +31,9 @@ const emails = (s: string) => ((s || "").match(/[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-
 const perthDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Perth" }).format(d);
 const addDays = (day: string, n: number) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 async function sha256(s: string) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
+// A failed write must never be silent: throwing makes the POST return 500, so the Apps Script
+// keeps its "since" marker and sends the same mail again next run (dedupe stops doubles).
+const must = <T extends { error: unknown }>(r: T): T => { if (r.error) throw new Error(JSON.stringify(r.error)); return r; };
 const rid = (p: string) => p + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 async function loadWatch() {
@@ -73,6 +76,7 @@ Deno.serve(async (req) => {
   let sent = 0, replies = 0, matchedDrafts = 0, skipped = 0;
   const touched: string[] = [];
 
+  try {
   for (const m of msgs.sort((a, b) => String(a.date).localeCompare(String(b.date)))) {
     if (!m || !m.id) continue;
     const out = m.direction === "out" || emails(m.from).includes(ME);
@@ -91,10 +95,10 @@ Deno.serve(async (req) => {
       const subj = String(m.subject || "").trim().toLowerCase();
       const draft = (acts || []).find((a) => a.data.type === "email" && a.data.status === "draft" && String(a.data.subject || "").trim().toLowerCase() === subj);
       if (draft) {
-        await sb.from("crm_acts").update({ data: { ...draft.data, status: "sent", at, body: text || draft.data.body, gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail" }, updated_at: new Date().toISOString() }).eq("id", draft.id);
+        must(await sb.from("crm_acts").update({ data: { ...draft.data, status: "sent", at, body: text || draft.data.body, gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail" }, updated_at: new Date().toISOString() }).eq("id", draft.id));
         matchedDrafts++;
       } else {
-        await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: "email", direction: "out", status: "sent", subject: m.subject || "", body: text, to: m.to || "", at, gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } });
+        must(await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: "email", direction: "out", status: "sent", subject: m.subject || "", body: text, to: m.to || "", at, gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } }));
         sent++;
       }
       const nSent = (acts || []).filter((a) => a.data.type === "email" && a.data.status === "sent").length + 1;
@@ -104,7 +108,7 @@ Deno.serve(async (req) => {
         if (r === "pre") to = st.find((s: string) => role(s) === "out") || "";
         else if (r === "out" && nSent > 1) { const nx = st[st.indexOf(d.stage) + 1]; if (nx && role(nx) === "out") to = nx; }
         if (to && to !== d.stage) {
-          await sb.from("crm_acts").insert({ id: rid("a"), company_id: cid, data: { companyId: cid, oppId: o.id, type: "stage", subject: d.stage + " → " + to, body: "Email sent (from Gmail)", at, createdAt: new Date().toISOString() } });
+          must(await sb.from("crm_acts").insert({ id: rid("a"), company_id: cid, data: { companyId: cid, oppId: o.id, type: "stage", subject: d.stage + " → " + to, body: "Email sent (from Gmail)", at, createdAt: new Date().toISOString() } }));
           d.stage = to; d.stageChangedAt = at; d.maxRank = Math.max(d.maxRank || 0, RANK[role(to)] || 0);
         }
         delete d.scheduledAt; delete d.scheduledSubject;
@@ -114,27 +118,34 @@ Deno.serve(async (req) => {
       }
     } else {
       const subj = String(m.subject || "");
-      const marketing = !!m.bulk || /confirm (your )?subscription|welcome to|thanks for (subscribing|signing up|joining)|you're (in|subscribed)|order (confirmation|#)|your order|receipt|newsletter|verify your email/i.test(subj)
+      const personal = /^\s*(re|fw|fwd)\s*:/i.test(subj) && !m.bulk;
+      const marketing = !personal && (!!m.bulk || /confirm (your )?subscription|welcome to|thanks for (subscribing|signing up|joining)|you're (in|subscribed)|order (confirmation|#)|your order|receipt|newsletter|verify your email/i.test(subj)
         || /unsubscribe|kmail-lists\.com|list-manage\.com|manage (your )?preferences|view (this|in) (email )?(in )?(your )?browser/i.test(text.slice(-3000) + " " + text.slice(0, 800))
-        || /no-?reply|newsletter|mailer|notifications?@/i.test(String(m.from || ""));
+        || /no-?reply|newsletter|mailer|notifications?@/i.test(String(m.from || "")));
       const auto = !!m.auto || /automatic reply|auto(-| )?reply|^auto:|out of office|thanks for getting in touch|we('ve| have) received your (email|message|enquiry)/i.test(subj)
         || /^\s*(thanks|thank you) for (getting in touch|your (email|message|enquiry))[\s\S]{0,200}(get back to you|respond) within/i.test(text);
       const firstOut = (acts || []).filter((a) => a.data.type === "email" && a.data.status === "sent" && a.data.direction !== "in").map((a) => { const t = new Date(a.data.at || ""); return isNaN(+t) ? "" : t.toISOString(); }).filter(Boolean).sort()[0];
       const afterOutreach = !!firstOut && firstOut <= at;
       const isReply = !marketing && afterOutreach;
-      await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: isReply ? "reply" : "list", direction: "in", subject: subj, body: text, from: m.from || "", at, outcome: marketing ? "their marketing email" : !afterOutreach ? "email from them before outreach" : auto ? "auto-reply" : "", gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } });
+      must(await sb.from("crm_acts").insert({ id: "gm-" + m.id, company_id: cid, data: { companyId: cid, type: isReply ? "reply" : "list", direction: "in", subject: subj, body: text, from: m.from || "", at, outcome: marketing ? "their marketing email" : !afterOutreach ? "email from them before outreach" : auto ? "auto-reply" : "", gmailMessageId: m.id, gmailThreadId: m.threadId || "", source: "gmail", createdAt: new Date().toISOString() } }));
       if (isReply && !auto) replies++;
       if (isReply && !auto) for (const o of live) {
         const d = { ...o.data }; const r = role(d.stage);
         if (r === "pre" || r === "out") {
           const to = stagesOf(d.pipeline).find((s: string) => role(s) === "replied");
-          if (to) { await sb.from("crm_acts").insert({ id: rid("a"), company_id: cid, data: { companyId: cid, oppId: o.id, type: "stage", subject: d.stage + " → " + to, body: "Reply received (from Gmail)", at, createdAt: new Date().toISOString() } }); d.stage = to; d.stageChangedAt = at; d.maxRank = Math.max(d.maxRank || 0, 2); }
+          if (to) { must(await sb.from("crm_acts").insert({ id: rid("a"), company_id: cid, data: { companyId: cid, oppId: o.id, type: "stage", subject: d.stage + " → " + to, body: "Reply received (from Gmail)", at, createdAt: new Date().toISOString() } })); d.stage = to; d.stageChangedAt = at; d.maxRank = Math.max(d.maxRank || 0, 2); }
         }
         d.nextFollowUp = today; d.lastContact = at; d.updatedAt = new Date().toISOString();
         await sb.from("crm_opps").update({ data: d, updated_at: new Date().toISOString() }).eq("id", o.id);
       }
     }
     touched.push(cid);
+  }
+
+  } catch (e) {
+    console.error("crm-gmail write failed, run will be retried", String(e));
+    await sb.from("crm_settings").upsert({ id: "gmail", data: { ...prevGmail, lastRun: new Date().toISOString(), summary: "Sync error, retrying: " + String(e).slice(0, 120), source: "apps-script" }, updated_at: new Date().toISOString() });
+    return json({ error: "write_failed", detail: String(e).slice(0, 300) }, 500);
   }
 
   // Scheduled sends: only when the caller sends the list (an absent list leaves everything as it is).
