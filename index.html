@@ -984,6 +984,12 @@ function nextHtml(o){
   const short=na.split(/,\s*24h after|\.\s/)[0].slice(0,90);
   return `<div class="next" title="${esc(na)}">${/^call/i.test(short)?ICON_PHONE:ICON_NEXT}<span>${esc(short)}</span></div>`;
 }
+/* Opening a sent, tracked outreach email in Gmail loads the preview image and logs a fake open, so the Gmail button asks first. */
+function gmWarn(a){ if(!a||a.type!=='email'||isInbound(a)) return '';
+  const os=a.oppId&&S.opps[a.oppId]?[S.opps[a.oppId]]:oppsOf(a.companyId);
+  return os.some(o=>o&&o.trackToken&&['pre','out'].includes(stageRole(o.stage)))?' data-gmwarn="1"':''; }
+document.addEventListener('click',e=>{ const a=e.target.closest&&e.target.closest('a[data-gmwarn]'); if(!a) return;
+  if(!confirm('Opening this in Gmail loads the tracking image and logs a fake open.\n\nTo read it, use "Show full email" here instead.\n\nOpen in Gmail anyway?')){ e.preventDefault(); e.stopImmediatePropagation(); } },true);
 function trkLine(o){ const t=o&&o.track; if(!t||!t.sentAt) return ''; const b=[];
   if(t.visits) b.push(t.visits+' visit'+(t.visits===1?'':'s')+(t.engagedSecs?' · '+secsTxt(t.engagedSecs):''));
   if(t.clicks) b.push(t.clicks+' click'+(t.clicks===1?'':'s'));
@@ -1002,7 +1008,7 @@ function trkHtml(o){ if(!o.trackToken) return ''; const t=o.track||{};
       ${reads.length?`Scrolled through: ${reads.map(esc).join(', ')}<br>`:''}
       ${t.readOffer?'Reached the offer section<br>':''}
       ${clicks.length?`Clicked: ${clicks.map(c=>esc(String(c).replace('|',' → '))).join('; ')}<br>`:''}
-      ${t.lastOpenAt?`Last open: ${esc(whenTxt(t.lastOpenAt))}<br>`:''}
+      ${t.lastOpenAt?`Last open: ${esc(whenTxt(t.lastOpenAt))} <button class="btn sm ghost" style="padding:2px 8px;font-size:12px;margin-left:4px" data-act="not-me" data-id="${esc(o._id)}" title="Clears this open if it was you viewing the email in Gmail">That was me</button><br>`:''}
     </div>
     <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">*Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images. Visits and clicks are the real signal.</div>
   </div>`; }
@@ -1164,7 +1170,7 @@ function emailTable(rows,st){
   ${open?`<tr><td colspan="5" style="background:var(--canvas)"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><label class="label" for="ang-${a._id}">Angle</label><select id="ang-${a._id}" class="inline-input" data-angle-for="${a._id}">${ANGLES.map(x=>`<option ${(a.angle||guessAngle(a.subject,a.body))===x?'selected':''}>${x}</option>`).join('')}</select>
   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-img-for="${a._id}" ${a.hasImage?'checked':''}> Preview image in email</label>
   <span class="mono" style="color:var(--ink-3)">${words(a.body)} words · to ${esc(a.to||(S.companies[a.companyId]||{}).email||'')}</span>
-  <button class="btn sm" data-act="open" data-id="${a.companyId}">Open lead</button>${a.gmailThreadId?`<a class="btn sm" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Open in Gmail</a>`:''}</div><div class="bodybox">${esc(a.body||'No body saved.')}</div></td></tr>`:''}`;}).join('')}</tbody></table></div>`;
+  <button class="btn sm" data-act="open" data-id="${a.companyId}">Open lead</button>${a.gmailThreadId?`<a class="btn sm" target="_blank" rel="noopener"${gmWarn(a)} href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Open in Gmail</a>`:''}</div><div class="bodybox">${esc(a.body||'No body saved.')}</div></td></tr>`:''}`;}).join('')}</tbody></table></div>`;
 }
 
 /* ---------- FILES ---------- */
@@ -1327,7 +1333,7 @@ function evHtml(a,st){
   return `<div class="ev"><div class="ic ${ic}">${lbl}</div><div style="min-width:0"><div class="h"><b>${esc(title)}</b><span class="when">${draft?'Draft · ':''}${fmtDay(a.at)}</span></div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${a.type==='email'&&!inbound?`<span class="pill p-plain">${esc(a.angle||guessAngle(a.subject,a.body))}</span>`:''}${s?(s.replied?`<span class="pill p-good">Got a reply in ${s.days}d</span>`:`<span class="pill p-plain">No reply yet</span>`):''}${inbound&&a.outcome?`<span class="pill ${a.outcome==='interested'?'p-good':a.outcome==='no'?'p-bad':'p-warn'}">${esc(a.outcome)}</span>`:''}${a.hasImage?'<span class="pill p-plain">Image</span>':''}</div>
   ${a.body?(open?`<div class="bodybox">${esc(a.body)}</div>`:`<div class="snip" data-act="expand" data-id="${a._id}">${esc(a.body.slice(0,300))}</div>`):''}
-  <div class="actions" style="margin-top:6px">${a.body?`<button class="btn sm ghost" data-act="expand" data-id="${a._id}">${open?'Hide':'Show full email'}</button>`:''}${draft?`<button class="btn sm" data-act="mark-sent" data-id="${a._id}">I sent this</button>`:''}${a.gmailThreadId?`<a class="btn sm ghost" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Gmail</a>`:''}<button class="btn sm ghost" data-act="del-act" data-id="${a._id}">Delete</button></div></div></div>`;
+  <div class="actions" style="margin-top:6px">${a.body?`<button class="btn sm ghost" data-act="expand" data-id="${a._id}">${open?'Hide':'Show full email'}</button>`:''}${draft?`<button class="btn sm" data-act="mark-sent" data-id="${a._id}">I sent this</button>`:''}${a.gmailThreadId?`<a class="btn sm ghost" target="_blank" rel="noopener"${gmWarn(a)} href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Gmail</a>`:''}<button class="btn sm ghost" data-act="del-act" data-id="${a._id}">Delete</button></div></div></div>`;
 }
 function composerHtml(c,cp,os){
   const k=cp.kind; const t=today();
@@ -1412,6 +1418,7 @@ document.addEventListener('click', async e=>{
     case 'cancel-compose': S.compose=null; renderOverlay(); flush(); break;
     case 'add-opp': { const os=oppsOf(id); const p=os.some(o=>o.pipeline==='email')&&!os.some(o=>o.pipeline==='web')?'web':!os.some(o=>o.pipeline==='email')?'email':'email'; await createOpp(id,p,{}); toast((p==='web'?'Website':'Email')+' deal added'); break; }
     case 'hold': { const o=S.opps[id]; if(onHold(o)){ await updateOpp(id,{onHold:null, nextFollowUp:today()}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'Off hold',body:'',at:nowIso(),createdAt:nowIso()}); toast('Back in '+o.stage+'. Follow-up set for today'); } else { const back=addDays(today(),60); await updateOpp(id,{onHold:{since:today(),revisitOn:back,reason:''}, nextFollowUp:back}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'On hold until '+fmtDay(back),body:'',at:nowIso(),createdAt:nowIso()}); toast('On hold until '+fmtDay(back)+'. Change the date below'); } break; }
+    case 'not-me': { el.disabled=true; const {data,error}=await sb.rpc('crm_track_dismiss_open',{p_opp:id}); if(error){ el.disabled=false; toast('Could not clear it: '+error.message); break; } if(S.opps[id]&&data) S.opps[id].track=data; render(); renderOverlay(); toast('Cleared. That open no longer counts'); break; }
     case 'won': { const o=S.opps[id]; const s=stages(o.pipeline).find(x=>stageRole(x)==='won'); if(s){ await moveStage(id,s,'Marked won'); toast('Marked won. Nice work.'); } break; }
     case 'lost': { const o=S.opps[id]; const s=stages(o.pipeline).find(x=>stageRole(x)==='lost'); if(s){ await moveStage(id,s,'Marked lost'); toast('Marked lost'); } break; }
     case 'mark-sent': { const a=S.acts[id]; await patch('acts',id,{status:'sent',at:nowIso()}); await afterSent(a.companyId,a.oppId,nowIso()); toast('Marked sent. Nudge booked for '+fmtDay(addDays(today(),setting('nudgeDays')))); break; }
