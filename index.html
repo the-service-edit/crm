@@ -340,6 +340,7 @@ tr.click:hover td{background:#FAF9F7}
 .colk.virt .colk-h .hint{flex-basis:100%;font-size:11px;color:var(--ink-3);font-weight:400}
 .card .stg{font-size:11px;color:var(--ink-3)}
 .card .sched{font-size:12px;color:#4A5A8A;font-weight:500}
+.card .next{font-size:12px;line-height:1.35;color:var(--ink);font-weight:600;display:flex;gap:5px;align-items:flex-start}.card .next svg{flex:0 0 auto;width:12px;height:12px;margin-top:1px;stroke:currentColor;fill:none;stroke-width:1.6}.card .next .theirs{font-weight:400;color:var(--ink-3)}.card .next.due{color:#A3412A}
 .colk-h{border-top:0!important;border-radius:12px 12px 0 0;padding:11px 12px;gap:8px;align-items:center;justify-content:flex-start;border-bottom:1px solid var(--line)}
 .colk-h b{font-size:13px;font-weight:600}
 .colk-h b::before{width:8px;height:8px}
@@ -943,7 +944,7 @@ function metric(l,v,s){ return `<div class="metric"><div class="label">${esc(l)}
 function todayRows(tab,items){
   if(!items.length) return '<div class="empty">Nothing here right now.</div>';
   return items.slice(0,40).map(it=>{
-    if(tab==='hot'){ const o=it; const c=S.companies[o.companyId]||{}; return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${esc(o.track.hotReason||'')} · ${esc(trkLine(o))}${c.phone?' · '+phoneLink(c,'tel'):''}${theirTime(c)?' · '+esc(theirTime(c)):''}</div></div><span class="pill p-good">${esc(whenTxt(o.track.lastSeenAt))}</span></div>`; }
+    if(tab==='hot'){ const o=it; const c=S.companies[o.companyId]||{}; return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">${o.callAt?(()=>{const k=fmtCall(o.callAt,o.callTz);return `<b>${new Date(o.callAt)<=new Date()?'Call now':'Call '+esc(k.day)+', '+esc(k.time)+(k.theirs?' ('+esc(k.theirs)+')':'')}</b> · `;})():''}${esc(o.track.hotReason||'')} · ${esc(trkLine(o))}${c.phone?' · '+phoneLink(c,'tel'):''}${theirTime(c)?' · '+esc(theirTime(c)):''}</div></div><span class="pill p-good">${esc(whenTxt(o.track.lastSeenAt))}</span></div>`; }
     if(tab==='drafts'){ const a=it; return `<div class="row click" data-act="open" data-id="${a.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(a.companyId))}</div><div class="sub">Draft · ${esc(a.subject||'(no subject)')}</div></div><span class="pill p-plain">${fmtDay(a.at)}</span></div>`; }
     if(tab==='replies'){ const {c,i}=it; return `<div class="row click" data-act="open" data-id="${c._id}"><div style="min-width:0"><div class="t">${esc(c.name)}</div><div class="sub">Replied ${fmtDay(i.at)} · ${esc(i.subject||i.body||'')}</div></div><span class="pill ${i.outcome==='interested'?'p-good':'p-warn'}">${esc(i.outcome||'Reply')}</span></div>`; }
     if(tab==='waiting'||tab==='nudges'||tab==='calls'){ const {o,last}=it; const d=ageDays(last.at); return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(o.companyId))} ${pipePill(o.pipeline)}</div><div class="sub">Sent ${fmtDay(last.at)} · ${esc(last.subject||'')}</div></div><span class="pill ${d>=setting('callDays')?'p-bad':d>=setting('nudgeDays')?'p-warn':'p-plain'}">${d}d · ${d>=setting('callDays')?'Call':d>=setting('nudgeDays')?'Nudge':'Wait'}</span></div>`; }
@@ -964,6 +965,25 @@ const telHref = p => 'tel:'+String(p||'').replace(/[^0-9+]/g,'');
 const isHot = o => !!(o&&o.track&&o.track.hot&&o.track.lastSeenAt&&(Date.now()-Date.parse(o.track.lastSeenAt))<48*3600e3);
 const secsTxt = s => { s=+s||0; return s>=60?Math.floor(s/60)+'m'+(s%60?' '+(s%60)+'s':''):s+'s'; };
 const whenTxt = iso => { if(!iso) return ''; try{ return new Date(iso).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(_){ return iso; } };
+/* Next step on the card: the call time for hot leads (24h after first visit, set by the database), else the next action, else the stage's default. */
+const ICON_PHONE='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 1.8h2.4l1.1 3-1.5 1a8 8 0 0 0 4.9 4.9l1-1.5 3 1.1v2.4a1.5 1.5 0 0 1-1.6 1.5A12.5 12.5 0 0 1 1.8 3.4a1.5 1.5 0 0 1 1.4-1.6z"/></svg>';
+const ICON_NEXT='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>';
+function fmtCall(iso,tz){ const d=new Date(iso); const f=(z,o)=>new Intl.DateTimeFormat('en-AU',Object.assign({timeZone:z},o)).format(d).replace(/\s?([ap])\.?m\.?/i,(m,a)=>a.toLowerCase()+'m');
+  const day=f('Australia/Perth',{weekday:'short',day:'numeric',month:'short'}).replace(',',''), time=f('Australia/Perth',{hour:'numeric',minute:'2-digit'});
+  const theirs = tz && tz!=='Australia/Perth' ? f(tz,{hour:'numeric',minute:'2-digit'})+' their time' : '';
+  return {day,time,theirs}; }
+function nextHtml(o){
+  const role=stageRole(o.stage); if(role==='won'||role==='lost') return '';
+  if(o.callAt && ['pre','out'].includes(role)){
+    const due=new Date(o.callAt)<=new Date(); const c=fmtCall(o.callAt,o.callTz);
+    return `<div class="next${due?' due':''}" title="${esc(o.nextAction||'')}">${ICON_PHONE}<span>${due?'Call now':'Call '+esc(c.day)+', '+esc(c.time)}${!due&&c.theirs?` <span class="theirs">(${esc(c.theirs)})</span>`:''}</span></div>`;
+  }
+  let na=String(o.nextAction||'').trim(); if(/^(showcase live|https?:)/i.test(na)) na='';
+  if(!na){ na = o.stage==='Outreach sent'?'Send the nudge email': /first follow/i.test(o.stage)?'Send the second follow-up': /second follow/i.test(o.stage)?'Call them': role==='replied'?'Reply and book a call': role==='meeting'?'Send the proposal': role==='proposal'?'Follow up the proposal':''; }
+  if(!na) return '';
+  const short=na.split(/,\s*24h after|\.\s/)[0].slice(0,90);
+  return `<div class="next" title="${esc(na)}">${/^call/i.test(short)?ICON_PHONE:ICON_NEXT}<span>${esc(short)}</span></div>`;
+}
 function trkLine(o){ const t=o&&o.track; if(!t||!t.sentAt) return ''; const b=[];
   if(t.visits) b.push(t.visits+' visit'+(t.visits===1?'':'s')+(t.engagedSecs?' · '+secsTxt(t.engagedSecs):''));
   if(t.clicks) b.push(t.clicks+' click'+(t.clicks===1?'':'s'));
@@ -1077,6 +1097,7 @@ function cardHtml(o){
     ${boardCol(o)!==o.stage&&(o.stage!=='Outreach sent'||onHold(o))&&boardCol(o)!=='Scheduled'?`<div class="stg">${esc(o.stage)}</div>`:''}
     ${schedAt(o)?`<div class="sched" title="${esc(o.scheduledSubject||'')}">${stageRole(o.stage)==='pre'?'Sends':'Follow-up sends'} ${esc(schedTxt(o))}</div>`:''}
     ${trkLine(o)?`<div class="trk">${hotPill(o)}<span>${esc(trkLine(o))}</span></div>`:''}
+    ${onHold(o)?'':nextHtml(o)}
     <div class="foot"><span class="val">${val||'&nbsp;'}</span>${onHold(o)?`<span class="pill ${od||o.nextFollowUp===today()?'p-warn':'p-plain'}" title="${esc((o.onHold&&o.onHold.reason)||'')}">${esc(holdTxt(o))}</span>`:o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
     ${links?`<div class="links">${links}</div>`:''}
   </article>`;
