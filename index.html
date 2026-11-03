@@ -586,6 +586,7 @@ function handleDbErr(e){ const m=(e&&(e.message||''))+''; if(/row-level security
 async function updateOpp(id, data){ const o=S.opps[id]; if(!o) return; await patch('opps',id,Object.assign({updatedAt:nowIso()},data)); }
 async function moveStage(id, stage, note){
   const o=S.opps[id]; if(!o || o.stage===stage) return;
+  CHIME.local[id]=Date.now();
   const role=stageRole(stage), rank=ROLE_RANK[role];
   const data={stage, stageChangedAt:nowIso(), updatedAt:nowIso()};
   if(rank>(o.maxRank||0)) data.maxRank=rank;
@@ -640,6 +641,70 @@ async function boot(){
   if(recovering){ renderAuth('recover'); } else if(data.session){ user=data.session.user; start(); } else renderAuth();
   registerSW();
 }
+/* ---------- chimes: a bright ding when a lead first visits their showcase, a warmer three-note chime when a lead replies ----------
+   Compares each load or live change against the last leads it chimed for (kept in this browser), so changes that happened
+   while the app was closed chime on the next open. Browsers only allow sound after a tap, so a queued chime plays on the first tap.
+   Your own stage moves never chime. Off switch and test buttons live in Settings. */
+const CHIME = {
+  ctx:null, queue:[], local:{},
+  on(){ try{ return localStorage.getItem('tse-crm-sound')!=='0'; }catch(_){ return true; } },
+  setOn(v){ try{ localStorage.setItem('tse-crm-sound', v?'1':'0'); }catch(_){} },
+  unlock(){
+    try{
+      if(!CHIME.ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; CHIME.ctx=new AC(); }
+      const c=CHIME.ctx; const go=()=>{ const q=CHIME.queue.splice(0); q.forEach((k,i)=>setTimeout(()=>CHIME.play(k),i*900)); };
+      if(c.state!=='running') c.resume().then(go,()=>{}); else go();
+    }catch(_){}
+  },
+  tone(f, t0, dur, vol, type){
+    const c=CHIME.ctx, o=c.createOscillator(), g=c.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,t0);
+    g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(vol,t0+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0+dur+0.05);
+  },
+  play(kind){
+    const c=CHIME.ctx; if(!c || c.state!=='running'){ if(!CHIME.queue.includes(kind)) CHIME.queue.push(kind); return; }
+    const t=c.currentTime+0.02;
+    if(kind==='visited'){ /* glassy two-note ding, bell partials */
+      [[1318.5,0],[1975.5,0.11]].forEach(([f,d])=>{ CHIME.tone(f,t+d,1.4,0.22); CHIME.tone(f*2.76,t+d,0.35,0.03); CHIME.tone(f*2,t+d,0.6,0.04); });
+    } else { /* replied: warm rising major triad, softer and longer */
+      [[523.25,0],[659.25,0.13],[783.99,0.26],[1046.5,0.42]].forEach(([f,d],i)=>{ CHIME.tone(f,t+d,i===3?1.8:1.1,0.16,'triangle'); CHIME.tone(f*2,t+d,0.5,0.03); });
+    }
+  },
+  sets(){
+    const v=[], r=[];
+    list(S.opps).forEach(o=>{
+      const t=o.track||{};
+      if(o.pipeline==='email' && t.sentAt && (t.visits||t.clicks)) v.push(o._id);
+      if(Math.max(o.maxRank||0, ROLE_RANK[stageRole(o.stage)]||0)>=2 && stageRole(o.stage)!=='lost') r.push(o._id);
+    });
+    return {v,r};
+  },
+  check(){
+    if(!S.ready) return;
+    const now=CHIME.sets(); let seen=null;
+    try{ seen=JSON.parse(localStorage.getItem('tse-crm-seen')||'null'); }catch(_){}
+    const save=()=>{ try{ localStorage.setItem('tse-crm-seen', JSON.stringify(now)); }catch(_){} };
+    if(!seen){ save(); return; } /* first run in this browser: everything already there is the baseline */
+    const fresh=k=>now[k].filter(id=>!seen[k].includes(id) && !(Date.now()-(CHIME.local[id]||0)<15000));
+    const nv=fresh('v'), nr=fresh('r');
+    if(now.v.join()!==seen.v.join() || now.r.join()!==seen.r.join()) save();
+    if(!nv.length && !nr.length) return;
+    const nm=ids=>{ const n=ids.map(id=>{ const o=S.opps[id]; const c=o&&S.companies[o.companyId]; return c?c.name:'A lead'; }); return n.length>2? n.slice(0,2).join(', ')+' and '+(n.length-2)+' more' : n.join(' and '); };
+    const msg=[nr.length?nm(nr)+' replied':'', nv.length?nm(nv)+(nv.length>1?' visited their showcases':' visited their showcase'):''].filter(Boolean).join(' · ');
+    setTimeout(()=>toast(msg),0);
+    if(!CHIME.on()) return;
+    if(nv.length) CHIME.play('visited');
+    if(nr.length) nv.length? setTimeout(()=>CHIME.play('replied'),900) : CHIME.play('replied');
+  }
+};
+['pointerdown','keydown','touchend'].forEach(ev=>document.addEventListener(ev,CHIME.unlock,{passive:true,capture:true}));
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-chime]'); if(!b) return; e.preventDefault();
+  const k=b.dataset.chime;
+  if(k==='toggle'){ CHIME.setOn(!CHIME.on()); schedule(); return; }
+  CHIME.unlock(); setTimeout(()=>CHIME.play(k),60);
+});
 let keyMode=false, poll=null, channel=null, recovering=/type=recovery/.test(location.hash);
 async function start(){
   $('#app').innerHTML='<main class="main" style="grid-column:1/-1"><div class="wrap"><div class="panel">Loading your leads…</div></div></main>';
@@ -713,6 +778,7 @@ const ICON_MORE='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy
 const _i=d=>`<svg viewBox="0 0 16 16" aria-hidden="true">${d}</svg>`;
 const ICONS={today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
 function render(){
+  CHIME.check();
   const keep={}; document.querySelectorAll('[data-keep]').forEach(el=>keep[el.dataset.keep]=[el.scrollTop,el.scrollLeft]);
   const app=$('#app');
   const counts={ email:list(S.opps).filter(o=>o.pipeline==='email'&&isActive(o)).length, web:list(S.opps).filter(o=>o.pipeline==='web'&&isActive(o)).length, today:dueCount(), tasks:list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today()).length };
@@ -1093,6 +1159,8 @@ function viewSettings(){
   const g=goals();
   return `<div class="head"><div><h1>Settings</h1><p>Goals, follow-up timing, pipeline stages and your data</p></div></div>
   <div class="grid g2">
+  <div class="panel"><h2>Sounds</h2><p style="color:var(--ink-3);margin:0 0 12px">A ding when a lead first visits their showcase, a warmer chime when a lead replies. Plays while the CRM is open; anything that happened while it was closed chimes on your first tap after you open it. Sound is set per device.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ${CHIME.on()?'primary':''}" data-chime="toggle">${CHIME.on()?'Sounds on':'Sounds off'}</button><button type="button" class="btn" data-chime="visited">Play visited</button><button type="button" class="btn" data-chime="replied">Play replied</button></div></div>
   <form class="panel" data-form="settings" data-track><h2>Goals & timing</h2><div class="fields">
     <div class="field"><label for="s-eg">Email clients per month</label><input id="s-eg" name="emailClientsPerMonth" type="number" min="0" value="${g.emailClientsPerMonth}"></div>
     <div class="field"><label for="s-wg">Website projects per month</label><input id="s-wg" name="webProjectsPerMonth" type="number" min="0" value="${g.webProjectsPerMonth}"></div>
