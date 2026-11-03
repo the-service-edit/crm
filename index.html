@@ -623,7 +623,59 @@ function registerSW(){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(had && !reloaded && !isTyping() && !S.modal){ reloaded=true; location.reload(); } });
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); }); }).catch(()=>{});
 }
+/* ---------- push notifications (crm-push edge function; one subscription per device in crm_push_subs) ---------- */
+const PUSH_FN=SB_URL+'/functions/v1/crm-push';
+function openFromHash(){ const m=(location.hash||'').match(/^#open=([\w-]+)/); if(!m) return; S.view='email'; S.open=m[1]; history.replaceState(null,'',location.pathname+'#email'); }
+const PUSH = {
+  state:'checking',
+  ios(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); },
+  standalone(){ return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true; },
+  supported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol==='https:'; },
+  async refresh(){
+    if(!PUSH.supported()){ PUSH.state = PUSH.ios() && !PUSH.standalone() ? 'ios-home' : 'unsupported'; return schedule(); }
+    if(Notification.permission==='denied'){ PUSH.state='blocked'; return schedule(); }
+    try{ const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription(); PUSH.state=sub?'on':'off'; }catch(_){ PUSH.state='off'; }
+    schedule();
+  },
+  async id(endpoint){ const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(endpoint)); return 'p-'+[...new Uint8Array(h)].slice(0,12).map(b=>b.toString(16).padStart(2,'0')).join(''); },
+  device(){ const u=navigator.userAgent; return /iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android':/Mac/.test(u)?'Mac':'Computer'; },
+  async on(){
+    try{
+      const perm=await Notification.requestPermission(); if(perm!=='granted'){ PUSH.state=perm==='denied'?'blocked':'off'; schedule(); return toast('Notifications were not allowed'); }
+      const {pub}=await (await fetch(PUSH_FN)).json();
+      const raw=Uint8Array.from(atob(pub.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+      const reg=await navigator.serviceWorker.ready;
+      let sub=await reg.pushManager.getSubscription(); if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:raw});
+      const j=sub.toJSON(); const {error}=await sb.from('crm_push_subs').upsert({id:await PUSH.id(j.endpoint),data:{sub:j,device:PUSH.device(),ua:navigator.userAgent.slice(0,160),createdAt:nowIso()},updated_at:nowIso()});
+      if(error) throw error;
+      PUSH.state='on'; schedule(); toast('Notifications on for this '+PUSH.device());
+    }catch(e){ toast('Could not turn on notifications: '+String(e&&e.message||e).slice(0,80)); PUSH.refresh(); }
+  },
+  async off(){
+    try{ const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription(); if(sub){ await sb.from('crm_push_subs').delete().eq('id',await PUSH.id(sub.endpoint)); await sub.unsubscribe(); } }catch(_){}
+    PUSH.state='off'; schedule(); toast('Notifications off for this device');
+  },
+  async test(){
+    try{ const {data:{session}}=await sb.auth.getSession(); const r=await fetch(PUSH_FN,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token||'')},body:JSON.stringify({test:true})}); const j=await r.json(); toast(j.devices!=null?`Test sent to ${j.sent} of ${j.devices} device${j.devices===1?'':'s'}`:'Test failed: '+(j.error||r.status)); }
+    catch(e){ toast('Test failed: '+String(e&&e.message||e).slice(0,80)); }
+  },
+  panel(){
+    const s=PUSH.state; const msg={
+      checking:'Checking this device…',
+      on:'On for this device. You will get a notification when a lead first visits their showcase, turns hot, or replies, even with the CRM closed.',
+      off:'Get a notification on this device when a lead first visits their showcase, turns hot, or replies, even with the CRM closed. Turn it on for each phone and computer you want alerts on.',
+      blocked:'Notifications are blocked for the CRM on this device. Allow them in your browser or phone settings, then come back here.',
+      'ios-home':'On iPhone, notifications only work when the CRM is opened from its home-screen icon. In Safari tap Share, then Add to Home Screen, open it from the icon and turn notifications on there.',
+      unsupported:'This browser cannot receive notifications. Use Chrome or Safari on your Mac, or the home-screen app on your iPhone.'}[s];
+    const btns = s==='on' ? `<button type="button" class="btn" data-push="test">Send a test</button><button type="button" class="btn" data-push="off">Turn off on this device</button>`
+      : s==='off' ? `<button type="button" class="btn primary" data-push="on">Turn on notifications</button>` : '';
+    return `<div class="panel"><h2>Notifications</h2><p style="color:var(--ink-3);margin:0 0 12px">${msg}</p>${btns?`<div style="display:flex;gap:8px;flex-wrap:wrap">${btns}</div>`:''}</div>`;
+  }
+};
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-push]'); if(!b) return; e.preventDefault(); const k=b.dataset.push; if(k==='on') PUSH.on(); else if(k==='off') PUSH.off(); else if(k==='test') PUSH.test(); });
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ const d=e.data||{}; if(d.open){ S.view='email'; S.open=d.open; if(location.hash!=='#email') history.replaceState(null,'',location.pathname+'#email'); render(); } });
 async function boot(){
+  openFromHash(); PUSH.refresh();
   if(!window.supabase){ $('.main').innerHTML='<div class="wrap"><div class="panel"><h2>Could not load</h2><p style="margin:0;color:var(--ink-2)">Check your connection and reload.</p></div></div>'; return; }
   const hk=(location.hash.match(/(?:^#|&)k=([A-Za-z0-9_-]{20,})/)||[])[1];
   if(hk){ try{ localStorage.setItem('tse-crm-key',hk); }catch(_){} history.replaceState(null,'',location.pathname+'#today'); S.view='today'; }
@@ -1159,8 +1211,8 @@ function viewSettings(){
   const g=goals();
   return `<div class="head"><div><h1>Settings</h1><p>Goals, follow-up timing, pipeline stages and your data</p></div></div>
   <div class="grid g2">
-  <div class="panel"><h2>Sounds</h2><p style="color:var(--ink-3);margin:0 0 12px">A ding when a lead first visits their showcase, a warmer chime when a lead replies. Plays while the CRM is open; anything that happened while it was closed chimes on your first tap after you open it. Sound is set per device.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ${CHIME.on()?'primary':''}" data-chime="toggle">${CHIME.on()?'Sounds on':'Sounds off'}</button><button type="button" class="btn" data-chime="visited">Play visited</button><button type="button" class="btn" data-chime="replied">Play replied</button></div></div>
+  <div style="display:grid;gap:16px;align-content:start">${PUSH.panel()}<div class="panel"><h2>Sounds</h2><p style="color:var(--ink-3);margin:0 0 12px">A ding when a lead first visits their showcase, a warmer chime when a lead replies. Plays while the CRM is open; anything that happened while it was closed chimes on your first tap after you open it. Sound is set per device.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ${CHIME.on()?'primary':''}" data-chime="toggle">${CHIME.on()?'Sounds on':'Sounds off'}</button><button type="button" class="btn" data-chime="visited">Play visited</button><button type="button" class="btn" data-chime="replied">Play replied</button></div></div></div>
   <form class="panel" data-form="settings" data-track><h2>Goals & timing</h2><div class="fields">
     <div class="field"><label for="s-eg">Email clients per month</label><input id="s-eg" name="emailClientsPerMonth" type="number" min="0" value="${g.emailClientsPerMonth}"></div>
     <div class="field"><label for="s-wg">Website projects per month</label><input id="s-wg" name="webProjectsPerMonth" type="number" min="0" value="${g.webProjectsPerMonth}"></div>
@@ -1310,7 +1362,7 @@ function modalInner(){
 }
 
 /* ---------- events ---------- */
-window.addEventListener('hashchange',()=>{ const v=(location.hash||'#today').slice(1); if(VIEWS.some(x=>x[0]===v)){ S.view=v; render(); window.scrollTo(0,0);} });
+window.addEventListener('hashchange',()=>{ if(/^#open=/.test(location.hash)){ openFromHash(); render(); return; } const v=(location.hash||'#today').slice(1); if(VIEWS.some(x=>x[0]===v)){ S.view=v; render(); window.scrollTo(0,0);} });
 document.addEventListener('click', async e=>{
   if(e.target.closest('[data-stop]')) return;
   const el=e.target.closest('[data-act]'); if(!el) return;
