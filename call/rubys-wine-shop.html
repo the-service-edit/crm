@@ -63,21 +63,21 @@ button:disabled{opacity:.5;cursor:default}
 
 <main class="wrap">
 <section>
-<div class="num">1 · Open · 1 min</div>
-<h2>Congrats, then set the plan</h2>
-<div class="say"><p>Congratulate her on the wedding.</p><p>&ldquo;I&#x27;ll ask a few quick questions, show you how we&#x27;d grow your list and what the emails look like, then what it costs.&rdquo;</p></div>
+<div class="num">1 · Open · 3 min</div>
+<h2>Congrats, then her goals</h2>
+<div class="say"><p>Congratulate her on the wedding.</p><p>&ldquo;Before I show you anything, I want to know what you&#x27;re after, so everything I show you is about that.&rdquo;</p></div>
+<div class="q"><label for="goal">What are your goals for the next three months? If email worked for Ruby&#x27;s, what would be different by February?</label><span class="why">Ask this first. Let her talk. Her words become your close: &ldquo;You said you wanted ___. This is how we get there.&rdquo;</span><textarea id="goal" data-k="goal"></textarea></div>
 </section>
 
 <section>
-<div class="num">2 · Ask · 4 min</div>
-<h2>Six questions</h2>
+<div class="num">2 · Ask · 3 min</div>
+<h2>Then these, briefly</h2>
 <div class="q"><label for="traffic">Roughly how many people come through each week, and how many are regulars?</label><span class="why">Tells you how fast the list can grow. Don&#x27;t guess a number for her.</span><textarea id="traffic" data-k="traffic"></textarea></div>
 <div class="q"><label for="want">What do you most want more of: people in on quiet nights, gift box sales, or bottles out the door?</label><span class="why">This is what the emails promote.</span><textarea id="want" data-k="want"></textarea></div>
 <div class="q"><label for="buyers">Who buys the gift boxes? Locals, people sending gifts, businesses? How many Custom orders come from companies?</label><span class="why">Her Custom form has a Company field and free delivery on 5+ boxes. If businesses buy, corporate gifting is the strongest Christmas email.</span><textarea id="buyers" data-k="buyers"></textarea></div>
 <div class="q"><label for="checkout">How many customers are in your Shopify customer list? Is the marketing tick box on at checkout?</label><span class="why">Her real list may be bigger than 35. Don&#x27;t promise we can email past buyers: &ldquo;I&#x27;ll check which of them we can email.&rdquo;</span><textarea id="checkout" data-k="checkout"></textarea></div>
 <div class="q"><label for="esp">What do you send the newsletter from now? Why did it stop?</label><span class="why">If it isn&#x27;t Shopify Email, rethink the template before quoting. The &ldquo;why it stopped&rdquo; answer sets up the template.</span><textarea id="esp" data-k="esp"></textarea></div>
 <div class="q"><label for="quiz">What events do you run, or want to run? Tastings, producer nights, quiz?</label><span class="why">She takes no bookings. Don&#x27;t name events she hasn&#x27;t told you about.</span><textarea id="quiz" data-k="quiz"></textarea></div>
-<div class="q"><label for="goal">If this worked, what would three months from now look like?</label><span class="why">Her words here become your close.</span><textarea id="goal" data-k="goal"></textarea></div>
 </section>
 
 <section>
@@ -95,6 +95,8 @@ button:disabled{opacity:.5;cursor:default}
 <tr><td>Instagram</td><td>Link in bio, stories when a box or event drops</td><td>Followers become a list she owns</td></tr>
 </tbody>
 </table>
+<div class="say"><p><b>The online shop makes buying hard.</b> Put it as an observation, then ask: &ldquo;When I went to buy a box online, a few things slowed me down. Do people ever message you instead of ordering?&rdquo;</p><p>What you can point to on her gift box page:</p><ul style="margin:6px 0 8px;padding-left:20px"><li>The Ruby Custom ($380+) can&#x27;t be bought. It&#x27;s a request form, then up to 2 business days for a quote and invoice. Every step loses buyers.</li><li>Cut-off dates and delivery sit at the bottom under &ldquo;Read important info below before purchasing&rdquo;.</li><li>The shop only shows one box ($160) as a product. Explorer&#x27;s and Custom don&#x27;t show up in search or the shop.</li><li>Delivery is Brisbane metro only, so gifts to people interstate can&#x27;t be ordered.</li></ul><p>&ldquo;Email sends people to that page, so the page has to make it easy to say yes.&rdquo; Offer: the Box Push includes tidying the gift box page so each box is clear and buyable. Only offer this if you&#x27;re happy to absorb the time; otherwise quote it separately.</p></div>
+<div class="q"><label for="shopnotes">What she said about online orders</label><span class="why">Do people message instead of ordering? Lost sales she knows about?</span><textarea id="shopnotes" data-k="shopnotes"></textarea></div>
 <div class="say"><p><b>Be honest:</b> &ldquo;At 35 people, email won&#x27;t make you big money this Christmas. The job right now is building the list from people who already love the place. Then it brings regulars back, fills events, and sells boxes to people who already trust you.&rdquo;</p></div>
 </section>
 
@@ -159,7 +161,7 @@ button:disabled{opacity:.5;cursor:default}
 var SB_URL='https://rxwjactnfsrakpagbiit.supabase.co', SB_KEY='sb_publishable_G97KoWEPj9kSSf92fROYgQ_AmbtXeeK';
 var CID='c-rubys-wine-shop', OID='o-rubys-wine-shop-email', AID='a-call-rubys-wine-shop-20261104', LS='tse-call-rubys-wine-shop';
 var PAGE='https://the-service-edit.github.io/crm/call/rubys-wine-shop.html';
-var LABELS={option:'Where she landed',traffic:'Weekly foot traffic',want:'What she wants more of',buyers:'Gift box buyers',checkout:'Shopify customers and checkout opt-in',esp:'Email tool now and why it stopped',weekly:'Weekly workload',quiz:'Events',xmas:'Christmas boxes so far',pos:'Payments at the counter',goal:'Three-month goal',designs:'Reaction to designs',price:'Reaction to offer',fee:'Fee (A$ ex GST)',scope:'Guarantee bar and scope',objections:'Pushback',outcome:'Outcome',followup:'Follow-up date',next:'Next step',other:'Other notes',access:'Shopify collaborator access',quizDetails:'Event details received',sentProposal:'Proposal sent'};
+var LABELS={option:'Where she landed',traffic:'Weekly foot traffic',shopnotes:'Online ordering friction',want:'What she wants more of',buyers:'Gift box buyers',checkout:'Shopify customers and checkout opt-in',esp:'Email tool now and why it stopped',weekly:'Weekly workload',quiz:'Events',xmas:'Christmas boxes so far',pos:'Payments at the counter',goal:'Three-month goal',designs:'Reaction to designs',price:'Reaction to offer',fee:'Fee (A$ ex GST)',scope:'Guarantee bar and scope',objections:'Pushback',outcome:'Outcome',followup:'Follow-up date',next:'Next step',other:'Other notes',access:'Shopify collaborator access',quizDetails:'Event details received',sentProposal:'Proposal sent'};
 var els=[].slice.call(document.querySelectorAll('[data-k]'));
 var st=document.getElementById('status'), btn=document.getElementById('save');
 var sb=null, user=null, dirty=false, timer=null, saving=false, createdAt=null;
