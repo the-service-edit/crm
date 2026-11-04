@@ -341,6 +341,7 @@ tr.click:hover td{background:#FAF9F7}
 .colk.virt .colk-h .hint{flex-basis:100%;font-size:11px;color:var(--ink-3);font-weight:400}
 .card .stg{font-size:11px;color:var(--ink-3)}
 .card .sched{font-size:12px;color:#4A5A8A;font-weight:500}
+.autorep{font-size:12px;color:#6B5F54;font-style:italic}
 .card .next{font-size:12px;line-height:1.35;color:var(--ink);font-weight:600;display:flex;gap:5px;align-items:flex-start}.card .next svg{flex:0 0 auto;width:12px;height:12px;margin-top:1px;stroke:currentColor;fill:none;stroke-width:1.6}.card .next .theirs{font-weight:400;color:var(--ink-3)}.card .next.due{color:#A3412A}
 .colk-h{border-top:0!important;border-radius:12px 12px 0 0;padding:11px 12px;gap:8px;align-items:center;justify-content:flex-start;border-bottom:1px solid var(--line)}
 .colk-h b{font-size:13px;font-weight:600}
@@ -538,6 +539,7 @@ function oppsOf(cid){ return list(S.opps).filter(o=>o.companyId===cid); }
 function actsOf(cid){ return list(S.acts).filter(a=>a.companyId===cid).sort((a,b)=>(b.at||'').localeCompare(a.at||'')); }
 function isOutEmail(a){ return a.type==='email' && a.direction!=='in'; }
 function isInbound(a){ return a.type==='reply' || (a.type==='email' && a.direction==='in'); }
+function isRealReply(a){ return isInbound(a) && a.outcome!=='auto-reply'; }
 function companyName(id){ return (S.companies[id]||{}).name || 'Unknown business'; }
 function guessAngle(subject, body){
   const s=(subject||'')+' \n '+(body||'').slice(0,400);
@@ -558,7 +560,7 @@ function emailStats(){
     arr.sort((a,b)=>(a.at||'').localeCompare(b.at||''));
     const sent=arr.filter(a=>isOutEmail(a)&&a.status==='sent');
     sent.forEach(e=>res[e._id]={replied:false,days:null,outcome:null});
-    arr.filter(isInbound).forEach(r=>{
+    arr.filter(isRealReply).forEach(r=>{
       const prior=sent.filter(e=>(e.at||'')<=(r.at||''));
       const e=prior[prior.length-1];
       if(e && !res[e._id].replied){ res[e._id]={replied:true, days:Math.max(0,daysBetween(localDay(e.at),localDay(r.at))), outcome:r.outcome||null, replyId:r._id}; }
@@ -567,7 +569,7 @@ function emailStats(){
   return res;
 }
 function lastOut(cid){ return actsOf(cid).find(a=>isOutEmail(a)&&a.status==='sent'); }
-function lastIn(cid){ return actsOf(cid).find(isInbound); }
+function lastIn(cid){ return actsOf(cid).find(isRealReply); }
 function unanswered(cid){ const i=lastIn(cid); if(!i) return null; const o=actsOf(cid).find(a=>(a.type==='email'&&a.direction!=='in'&&a.status==='sent')||a.type==='call'||a.type==='meeting'); return (!o || (o.at||'')<(i.at||'')) ? i : null; }
 
 /* ---------- writes ---------- */
@@ -869,7 +871,7 @@ function followups(){
     overdue: act.filter(o=>o.nextFollowUp && o.nextFollowUp<t).sort((a,b)=>a.nextFollowUp.localeCompare(b.nextFollowUp)),
     due: act.filter(o=>o.nextFollowUp===t),
     upcoming: act.filter(o=>o.nextFollowUp && o.nextFollowUp>t && o.nextFollowUp<=addDays(t,7)).sort((a,b)=>a.nextFollowUp.localeCompare(b.nextFollowUp)),
-    waiting: act.filter(o=>['out'].includes(stageRole(o.stage))).map(o=>({o,last:lastOut(o.companyId)})).filter(x=>x.last && !list(S.acts).some(a=>a.companyId===x.o.companyId&&isInbound(a)&&(a.at||'')>(x.last.at||''))).sort((a,b)=>(a.last.at||'').localeCompare(b.last.at||'')),
+    waiting: act.filter(o=>['out'].includes(stageRole(o.stage))).map(o=>({o,last:lastOut(o.companyId)})).filter(x=>x.last && !list(S.acts).some(a=>a.companyId===x.o.companyId&&isRealReply(a)&&(a.at||'')>(x.last.at||''))).sort((a,b)=>(a.last.at||'').localeCompare(b.last.at||'')),
     none: act.filter(o=>!o.nextFollowUp && ROLE_RANK[stageRole(o.stage)]>=1)
   };
 }
@@ -877,7 +879,7 @@ function dueCount(){ const f=followups(); return f.overdue.length+f.due.length; 
 function metricsData(){
   const m0=today().slice(0,7);
   const sentM=list(S.acts).filter(a=>isOutEmail(a)&&a.status==='sent'&&localDay(a.at).slice(0,7)===m0).length;
-  const repM=list(S.acts).filter(a=>isInbound(a)&&localDay(a.at).slice(0,7)===m0).length;
+  const repM=list(S.acts).filter(a=>isRealReply(a)&&localDay(a.at).slice(0,7)===m0).length;
   const meetM=list(S.acts).filter(a=>a.type==='meeting'&&localDay(a.at).slice(0,7)===m0).length;
   const act=list(S.opps).filter(isActive);
   const props=act.filter(o=>['proposal','negotiation'].includes(stageRole(o.stage)));
@@ -1031,7 +1033,7 @@ function weeklyBars(){
   const weeks=[]; const d=new Date(); d.setHours(12); d.setDate(d.getDate()-((d.getDay()+6)%7));
   for(let i=7;i>=0;i--){ const s=new Date(d); s.setDate(s.getDate()-i*7); weeks.push(localDay(s)); }
   const data=weeks.map((w,i)=>{ const end=i<7?weeks[i+1]:addDays(w,7); const inW=a=>{const x=localDay(a.at);return x>=w&&x<end;};
-    return {w, s:list(S.acts).filter(a=>isOutEmail(a)&&a.status==='sent'&&inW(a)).length, r:list(S.acts).filter(a=>isInbound(a)&&inW(a)).length}; });
+    return {w, s:list(S.acts).filter(a=>isOutEmail(a)&&a.status==='sent'&&inW(a)).length, r:list(S.acts).filter(a=>isRealReply(a)&&inW(a)).length}; });
   const max=Math.max(1,...data.map(x=>Math.max(x.s,x.r)));
   return `<div class="bars">${data.map(x=>`<div class="col" title="Week of ${fmtDay(x.w)}: ${x.s} sent, ${x.r} replies"><div class="stack"><div class="b" style="height:${x.s/max*100}%"></div><div class="b r" style="height:${x.r/max*100}%"></div></div><div class="x num">${x.s}/${x.r}</div><div class="x">${fmtDay(x.w).replace(/ \d{4}$/,'')}</div></div>`).join('')}</div>`;
 }
@@ -1097,6 +1099,7 @@ function boardCol(o){ if(onHold(o)) return 'On hold'; if(o.pipeline==='email'&&s
   if(t.visits||t.clicks) return 'Visited'; if(t.opens) return 'Opened'; return o.stage; }
 function boardCols(p,st){ let c=[...st]; const w=c.findIndex(x=>['won','lost'].includes(stageRole(x))); c.splice(w>-1?w:c.length,0,'On hold'); if(p!=='email') return c; const o=c.findIndex(x=>stageRole(x)==='out'); if(o>-1) c.splice(o,0,'Scheduled');
   const i=c.findIndex(x=>stageRole(x)==='replied'); if(i>-1) c.splice(i,0,'Opened','Visited'); return c; }
+function autoRep(o){ if(!o||stageRole(o.stage)!=='out') return null; const last=lastOut(o.companyId); const ar=actsOf(o.companyId).find(a=>isInbound(a)&&a.outcome==='auto-reply'&&(!last||(a.at||'')>=(last.at||''))); if(!ar) return null; const real=lastIn(o.companyId); return real&&(real.at||'')>(ar.at||'')?null:ar; }
 function cardHtml(o){
   const c=S.companies[o.companyId]||{};
   const od=o.nextFollowUp&&o.nextFollowUp<today();
@@ -1107,6 +1110,7 @@ function cardHtml(o){
     <div class="sub">${esc([c.city,c.state].filter(Boolean).join(', ')||'No location')}</div>
     ${boardCol(o)!==o.stage&&(o.stage!=='Outreach sent'||onHold(o))&&boardCol(o)!=='Scheduled'?`<div class="stg">${esc(o.stage)}</div>`:''}
     ${schedAt(o)?`<div class="sched" title="${esc(o.scheduledSubject||'')}">${stageRole(o.stage)==='pre'?'Sends':'Follow-up sends'} ${esc(schedTxt(o))}</div>`:''}
+    ${autoRep(o)?`<div class="autorep" title="Their inbox sent an automatic reply on ${esc(fmtDay(autoRep(o).at))}. No real reply yet, so the follow-up timing is unchanged.">Auto-reply received · ${esc(fmtDay(autoRep(o).at))}</div>`:''}
     ${trkLine(o)?`<div class="trk">${hotPill(o)}<span>${esc(trkLine(o))}</span></div>`:''}
     ${onHold(o)?'':nextHtml(o)}
     <div class="foot"><span class="val">${val||'&nbsp;'}</span>${onHold(o)?`<span class="pill ${od||o.nextFollowUp===today()?'p-warn':'p-plain'}" title="${esc((o.onHold&&o.onHold.reason)||'')}">${esc(holdTxt(o))}</span>`:o.nextFollowUp?`<span class="pill ${od?'p-bad':o.nextFollowUp===today()?'p-warn':'p-plain'}">${fmtRel(o.nextFollowUp)}</span>`:''}</div>
