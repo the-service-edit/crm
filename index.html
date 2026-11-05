@@ -453,6 +453,10 @@ td>.tv{display:contents}
   .tbl-wrap td:first-child{font-size:15px;padding-bottom:8px}
   .tbl-wrap td:first-child::before{display:none}
 }
+/* clients */
+.cl-add{margin-top:10px}.cl-add>summary{list-style:none;cursor:pointer;display:inline-flex}.cl-add>summary::-webkit-details-marker{display:none}
+.cl-num{width:120px;text-align:right;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)}
+tr.late td{background:color-mix(in srgb,var(--bad-bg) 60%,transparent)}
 </style>
 </head>
 <body>
@@ -485,13 +489,14 @@ const ANGLES = ['Joined your list, nothing came','A gift / I made you something'
 const DOC_KINDS = ['Mockup','Proposal','Tick sheet','Contract','Invoice','Brand file','Other'];
 
 /* ---------- state ---------- */
-const S = { extra:{}, companies:{}, opps:{}, acts:{}, docs:{}, tasks:{}, settings:null, loaded:{}, ready:false,
+const S = { extra:{}, clients:{}, clientOpen:null, companies:{}, opps:{}, acts:{}, docs:{}, tasks:{}, settings:null, loaded:{}, ready:false,
   view:(location.hash||'#today').slice(1), open:null, modal:null, toast:'', boardPipe:'email', boardMode:'board',
   q:'', fPipe:'all', fStage:'all', fPri:'all', fState:'all', sort:'updated', todayTab:'due', outTab:'angles', expanded:{}, compose:null,
   fileKind:'all', fileBatch:'all', taskTab:'today', syncing:false, lastSync:null, syncMsg:'' };
+{ const cm=(location.hash||'').match(/^#client=([\w-]+)/); if(cm){ S.view='clients'; S.clientOpen=cm[1]; } }
 const SB_URL='https://rxwjactnfsrakpagbiit.supabase.co', SB_KEY='sb_publishable_G97KoWEPj9kSSf92fROYgQ_AmbtXeeK';
-const TABLE={companies:'crm_companies',opps:'crm_opps',acts:'crm_acts',docs:'crm_docs',tasks:'crm_tasks',settings:'crm_settings'};
-const STATEKEY={crm_companies:'companies',crm_opps:'opps',crm_acts:'acts',crm_docs:'docs',crm_tasks:'tasks'};
+const TABLE={clients:'crm_clients',companies:'crm_companies',opps:'crm_opps',acts:'crm_acts',docs:'crm_docs',tasks:'crm_tasks',settings:'crm_settings'};
+const STATEKEY={crm_clients:'clients',crm_companies:'companies',crm_opps:'opps',crm_acts:'acts',crm_docs:'docs',crm_tasks:'tasks'};
 let sb=null, user=null, canWrite=true, db=true;
 
 /* ---------- utils ---------- */
@@ -578,7 +583,7 @@ async function write(col,id,data){
   if(!sb||!user) return toast('Sign in first');
   const clean=Object.assign({},data); delete clean._id;
   const row={id,data:clean,updated_at:nowIso()};
-  if(['opps','acts','docs','tasks'].includes(col)) row.company_id=clean.companyId||null;
+  if(['opps','acts','docs','tasks','clients'].includes(col)) row.company_id=clean.companyId||null;
   if(col!=='settings'){ const key=STATEKEY[TABLE[col]]; S[key]=Object.assign({},S[key],{[id]:Object.assign({},clean,{_id:id})}); } else if(id==='main') S.settings=clean; else S.extra[id]=clean;
   schedule();
   const {error}=await sb.from(TABLE[col]).upsert(row);
@@ -824,19 +829,19 @@ document.addEventListener('focusout',()=>setTimeout(flush,250));
 document.addEventListener('input',e=>{ const f=e.target.closest && e.target.closest('form[data-track]'); if(f) f.dataset.dirty='1'; });
 
 /* ---------- render ---------- */
-const VIEWS=[['today','Today'],['email','Email marketing'],['web','Websites'],['leads','Leads'],['outreach','Emails sent'],['files','Mockups & files'],['revenue','Revenue'],['tasks','Tasks'],['settings','Settings']];
-const NAV_GROUPS=[['Main menu',['today','leads','tasks']],['Pipelines',['email','web']],['Outreach',['outreach','files']],['Business',['revenue','settings']]];
+const VIEWS=[['today','Today'],['clients','Clients'],['email','Email marketing'],['web','Websites'],['leads','Leads'],['outreach','Emails sent'],['files','Mockups & files'],['revenue','Revenue'],['tasks','Tasks'],['settings','Settings']];
+const NAV_GROUPS=[['Main menu',['today','clients','leads','tasks']],['Pipelines',['email','web']],['Outreach',['outreach','files']],['Business',['revenue','settings']]];
 /* Phone tab bar: the four places Mel works from most, everything else under More. */
-const TABS=['today','leads','email','web'];
-const TAB_LABEL={today:'Today',leads:'Leads',email:'Email',web:'Websites'};
+const TABS=['today','clients','leads','email'];
+const TAB_LABEL={today:'Today',clients:'Clients',leads:'Leads',email:'Email',web:'Websites'};
 const ICON_MORE='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>';
 const _i=d=>`<svg viewBox="0 0 16 16" aria-hidden="true">${d}</svg>`;
-const ICONS={today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
+const ICONS={clients:_i('<path d="M2 6.5 8 2.5l6 4"/><rect x="3.5" y="6.5" width="9" height="7" rx="1.5"/><path d="M6.5 13.5v-3h3v3"/>'),today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
 function render(){
   CHIME.check();
   const keep={}; document.querySelectorAll('[data-keep]').forEach(el=>keep[el.dataset.keep]=[el.scrollTop,el.scrollLeft]);
   const app=$('#app');
-  const counts={ email:list(S.opps).filter(o=>o.pipeline==='email'&&isActive(o)).length, web:list(S.opps).filter(o=>o.pipeline==='web'&&isActive(o)).length, today:dueCount(), tasks:list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today()).length };
+  const counts={ email:list(S.opps).filter(o=>o.pipeline==='email'&&isActive(o)).length, web:list(S.opps).filter(o=>o.pipeline==='web'&&isActive(o)).length, today:dueCount(), clients:clientCount(), tasks:list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today()).length };
   app.innerHTML = `<aside class="rail">
     <div class="brand"><svg class="logo" width="78" height="42" viewBox="0 0 120 64" role="img" aria-label="The Service Edit"><g font-family="Geist,Helvetica,Arial,sans-serif" font-weight="700" font-size="21" letter-spacing="-1" fill="currentColor" text-anchor="middle"><text x="60" y="19">THE</text><text x="60" y="40">SERVICE</text><text x="60" y="61">EDIT</text></g></svg><small>Leads CRM</small></div>
     <label class="rail-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input id="rail-q" type="search" placeholder="Search leads" value="${esc(S.q)}" data-railsearch></label>
@@ -859,8 +864,99 @@ function viewHtml(){
   let banner='';
   if(S.slow && !S.ready) banner='<div class="banner warn">Your store is slow to answer, so what you see may be out of date. It will refresh by itself.</div>';
   if(!canWrite) banner+='<div class="banner">You can view this CRM but not change it.</div>';
-  const v={today:viewToday,email:()=>viewBoard('email'),web:()=>viewBoard('web'),leads:viewLeads,outreach:viewOutreach,files:viewFiles,revenue:viewRevenue,tasks:viewTasks,settings:viewSettings}[S.view]||viewToday;
+  const v={today:viewToday,clients:viewClients,email:()=>viewBoard('email'),web:()=>viewBoard('web'),leads:viewLeads,outreach:viewOutreach,files:viewFiles,revenue:viewRevenue,tasks:viewTasks,settings:viewSettings}[S.view]||viewToday;
   return banner+v();
+}
+
+/* ---------- CLIENTS (signed accounts: access, links, sends, targets, invoices) ---------- */
+const SEND_STATUSES=['Planned','Building','Built','Awaiting approval','Approved','Scheduled','Sent','Skipped'];
+const INV_STATUSES=['Not yet','Issued','Paid','Waived','Overdue'];
+const CLIENT_STATUSES=['Onboarding','Active','Paused','Ended'];
+const fmtMoney2 = n => (n===''||n==null||isNaN(n)) ? '—' : 'A$'+Number(n).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtTime = t => { if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h>=12?'pm':'am'; return ((h%12)||12)+(m?':'+pad(m):'')+ap; };
+const clients = () => list(S.clients).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+const clientName = cl => cl.name || companyName(cl.companyId);
+const tzShort = tz => ({'Australia/Adelaide':'Adelaide','Australia/Perth':'Perth','Australia/Sydney':'Sydney','Australia/Melbourne':'Melbourne','Australia/Brisbane':'Brisbane','Australia/Hobart':'Hobart','Australia/Darwin':'Darwin'})[tz]||tz||'';
+function sendPill(s){ const c={Sent:'p-good',Scheduled:'p-good',Approved:'p-good','Awaiting approval':'p-warn',Building:'p-plain',Built:'p-plain',Planned:'p-plain',Skipped:'p-plain'}[s]||'p-plain'; return `<span class="pill ${c}">${esc(s||'Planned')}</span>`; }
+function invPill(s){ const c={Paid:'p-good',Issued:'p-warn',Overdue:'p-bad',Waived:'p-plain','Not yet':'p-plain'}[s]||'p-plain'; return `<span class="pill ${c}">${esc(s||'Not yet')}</span>`; }
+function clStatusPill(s){ const c={Active:'p-good',Onboarding:'p-warn',Paused:'p-plain',Ended:'p-plain'}[s]||'p-plain'; return `<span class="pill ${c}">${esc(s||'Onboarding')}</span>`; }
+function nextSend(cl){ const t=today(); return (cl.sends||[]).filter(s=>s.date && s.date>=t && !['Sent','Skipped'].includes(s.status)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')))[0]||null; }
+/* What needs Mel's attention: sends in the next 7 days not yet approved or scheduled, overdue invoices, key dates due. */
+function clientAlerts(cl){
+  const t=today(), wk=addDays(t,7), out=[];
+  (cl.sends||[]).forEach(s=>{ if(!s.date || ['Sent','Skipped'].includes(s.status)) return;
+    if(s.date<t) out.push({cls:'p-bad',txt:`"${s.title}" was due ${fmtDay(s.date)} and isn't marked sent`});
+    else if(s.date<=wk && !['Approved','Scheduled'].includes(s.status)) out.push({cls:'p-warn',txt:`"${s.title}" goes out ${fmtDay(s.date)}: ${s.status==='Awaiting approval'?'waiting on their approval':'not approved yet'}`});
+    else if(s.date<=wk && s.status==='Approved') out.push({cls:'p-warn',txt:`"${s.title}" is approved for ${fmtDay(s.date)}: schedule it`}); });
+  (cl.invoices||[]).forEach(i=>{ if(i.status==='Issued' && i.dueDate && i.dueDate<t) out.push({cls:'p-bad',txt:`Invoice ${i.label} is overdue (due ${fmtDay(i.dueDate)})`});
+    else if(i.status==='Not yet' && i.issueDate && i.issueDate<=t) out.push({cls:'p-warn',txt:`Invoice ${i.label} is due to be issued (${fmtDay(i.issueDate)})`}); });
+  (cl.keyDates||[]).forEach(k=>{ if(k.date && k.date>=t && k.date<=addDays(t,3)) out.push({cls:'p-plain',txt:`${fmtRel(k.date)}: ${k.label}`}); });
+  return out;
+}
+function clientCount(){ return clients().filter(c=>c.status!=='Ended').reduce((n,c)=>n+clientAlerts(c).filter(a=>a.cls!=='p-plain').length,0); }
+
+function viewClients(){
+  if(S.clientOpen && S.clients[S.clientOpen]) return clientDetail(S.clients[S.clientOpen]);
+  const cs=clients(), live=cs.filter(c=>c.status!=='Ended');
+  const mrr=live.filter(c=>c.status==='Active'||c.status==='Onboarding').reduce((s,c)=>s+(+c.fee||0),0);
+  const t=today(), horizon=addDays(t,14);
+  const upcoming=[]; live.forEach(c=>(c.sends||[]).forEach(s=>{ if(s.date && s.date>=t && s.date<=horizon && !['Sent','Skipped'].includes(s.status)) upcoming.push({c,s}); }));
+  upcoming.sort((a,b)=>(a.s.date+(a.s.time||'')).localeCompare(b.s.date+(b.s.time||'')));
+  const alerts=[]; live.forEach(c=>clientAlerts(c).forEach(a=>alerts.push({c,a})));
+  const waiting=upcoming.filter(u=>u.s.status==='Awaiting approval').length;
+  return `<div class="head"><div><h1>Clients</h1><p>Signed accounts: logins, links, send schedule, targets and invoices in one place.${gstNote()?' Fees'+gstNote()+'.':''}</p></div><div class="actions"><button class="btn primary" data-act="new-client">+ New client</button></div></div>
+  <div class="metrics">${metric('Clients',String(live.length),cs.length-live.length?cs.length-live.length+' ended':'active and onboarding')}${metric('Monthly fees',money(mrr)+'/mo','current clients')}${metric('Sends, next 14 days',String(upcoming.length),waiting?waiting+' waiting on approval':'none waiting on approval')}</div>
+  ${alerts.length?`<div class="panel"><h2>Needs you <span class="label">${alerts.length}</span></h2>${alerts.map(({c,a})=>`<div class="row click" data-act="client" data-id="${c._id}"><div style="min-width:0"><div class="t"><b>${esc(clientName(c))}</b></div><div class="s">${esc(a.txt)}</div></div><span class="pill ${a.cls}">${a.cls==='p-bad'?'Overdue':a.cls==='p-warn'?'Soon':'Coming up'}</span></div>`).join('')}</div>`:''}
+  <div class="panel"><h2>All clients</h2>${cs.length?`<div class="tbl-wrap"><table><thead><tr><th>Client</th><th>Status</th><th>Next send</th><th>Term</th><th class="r">Fee</th></tr></thead><tbody>${cs.map(c=>{ const n=nextSend(c); return `<tr class="click" data-act="client" data-id="${c._id}"><td><b>${esc(clientName(c))}</b><div style="color:var(--ink-3);font-size:12px">${esc(c.service||'')}</div></td><td>${clStatusPill(c.status)}</td><td>${n?`${fmtDay(n.date)}${n.time?' '+fmtTime(n.time):''} · ${esc(n.title)} ${sendPill(n.status)}`:'<span style="color:var(--ink-3)">Nothing scheduled</span>'}</td><td>${c.startDate?fmtDay(c.startDate):'—'} to ${c.endDate?fmtDay(c.endDate):'ongoing'}</td><td class="r num">${money(c.fee)}/mo</td></tr>`; }).join('')}</tbody></table></div>`:`<div class="empty">No clients yet. When a lead signs, add them with + New client.</div>`}</div>
+  <div class="panel"><h2>Sends in the next 14 days</h2>${upcoming.length?upcoming.map(({c,s})=>`<div class="row click" data-act="client" data-id="${c._id}"><div style="min-width:0"><div class="t">${fmtDay(s.date)}${s.time?' · '+fmtTime(s.time)+' '+esc(tzShort(c.tz)):''} · <b>${esc(clientName(c))}</b></div><div class="s">${esc(s.title)}</div></div>${sendPill(s.status)}</div>`).join(''):'<div class="empty">Nothing in the next two weeks.</div>'}</div>`;
+}
+
+function linkList(cl,arr){
+  const items=cl[arr]||[];
+  return items.length?items.map((x,i)=>`<div class="row"><div style="min-width:0"><div class="t"><b>${esc(x.label)}</b></div>${x.note?`<div class="s">${esc(x.note)}</div>`:''}${x.url?`<div class="s" style="word-break:break-all;color:var(--ink-3)">${esc(x.url)}</div>`:''}</div><div class="actions" style="flex-wrap:nowrap">${x.url?`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Open</a><button class="btn sm ghost" data-act="cl-copy" data-url="${esc(x.url)}">Copy</button>`:''}<button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="${arr}" data-i="${i}" aria-label="Remove">✕</button></div></div>`).join(''):'<div class="empty">Nothing added yet.</div>';
+}
+function addForm(cl,arr,fields,btn){
+  return `<details class="cl-add"><summary class="btn sm ghost">+ ${esc(btn)}</summary><form data-form="cl-add" data-id="${cl._id}" data-arr="${arr}" data-track style="margin-top:10px"><div class="fields">${fields.map(f=>{
+    if(f.type==='select') return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><select name="${f.name}">${f.opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
+    return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><input name="${f.name}" type="${f.type||'text'}" ${f.req?'required':''} ${f.step?`step="${f.step}"`:''} value="${esc(f.val||'')}"></div>`; }).join('')}</div><div class="actions" style="margin-top:10px"><button class="btn sm primary">Add</button></div></form></details>`;
+}
+function clientDetail(cl){
+  const c=S.companies[cl.companyId]||{}, t=today(), al=clientAlerts(cl);
+  const sends=(cl.sends||[]).map((s,i)=>Object.assign({_i:i},s)).sort((a,b)=>((a.date||'9')+(a.time||'')).localeCompare((b.date||'9')+(b.time||'')));
+  const sentN=sends.filter(s=>s.status==='Sent').length;
+  const tgt=(cl.targets||[]).map((x,i)=>{ const has=x.actual!==''&&x.actual!=null&&!isNaN(x.actual); const met=has && Number(x.actual)>Number(x.target); const gap=has?Number(x.actual)-Number(x.target):null;
+    return `<tr><td><b>${esc(x.period)}</b><div style="color:var(--ink-3);font-size:12px">${esc(x.metric||'')}</div></td><td class="r num">${fmtMoney2(x.baseline)}</td><td class="r num">${x.feeAtStake?'more than ':''}${fmtMoney2(x.target)}</td><td class="r"><input class="cl-num" type="number" step="0.01" inputmode="decimal" placeholder="Enter" value="${has?esc(x.actual):''}" data-cl-arr="${cl._id}" data-arr="targets" data-i="${i}" name="actual" aria-label="Actual for ${esc(x.period)}"></td><td>${has?(x.feeAtStake?(met?`<span class="pill p-good">Met: fee payable</span>`:`<span class="pill p-bad">Not met: free</span>`):(gap>=0?`<span class="pill p-good">Up ${fmtMoney2(gap)}</span>`:`<span class="pill p-warn">Down ${fmtMoney2(-gap)}</span>`))+(x.feeAtStake?`<div style="color:var(--ink-3);font-size:12px;margin-top:3px">${gap>=0?'+':'−'}${fmtMoney2(Math.abs(gap))} vs target</div>`:''):'<span style="color:var(--ink-3)">Waiting on figures</span>'}</td><td><button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="targets" data-i="${i}" aria-label="Remove">✕</button></td></tr>${x.note?`<tr><td colspan="6" style="color:var(--ink-3);font-size:12px;padding-top:0">${esc(x.note)}</td></tr>`:''}`; }).join('');
+  const inv=(cl.invoices||[]).map((x,i)=>`<tr><td><b>${esc(x.label)}</b>${x.note?`<div style="color:var(--ink-3);font-size:12px">${esc(x.note)}</div>`:''}</td><td class="r num">${money(x.amount)}${x.gst?' +GST':''}</td><td>${fmtDay(x.issueDate)}</td><td>${fmtDay(x.dueDate)}</td><td><select data-cl-arr="${cl._id}" data-arr="invoices" data-i="${i}" name="status">${INV_STATUSES.map(s=>`<option ${s===(x.status||'Not yet')?'selected':''}>${s}</option>`).join('')}</select></td><td><button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="invoices" data-i="${i}" aria-label="Remove">✕</button></td></tr>`).join('');
+  const kd=(cl.keyDates||[]).map((x,i)=>Object.assign({_i:i},x)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  return `<div class="head"><div><button class="linkbtn" data-act="client-back" style="padding:0;margin-bottom:6px">← All clients</button><h1>${esc(clientName(cl))}</h1><p>${clStatusPill(cl.status)} ${esc(cl.service||'')} · ${cl.startDate?fmtDay(cl.startDate):'—'} to ${cl.endDate?fmtDay(cl.endDate):'ongoing'} · ${money(cl.fee)}/mo${cl.tz?' · sends in '+esc(tzShort(cl.tz))+' time':''}</p></div><div class="actions">${cl.contactPhone?`<a class="btn" href="${telHref(cl.contactPhone)}">Call ${esc(cl.contactName||'')}</a>`:''}${cl.contactEmail?`<a class="btn" href="mailto:${esc(cl.contactEmail)}">Email</a>`:''}${cl.companyId?`<button class="btn" data-act="open" data-id="${cl.companyId}">Open lead record</button>`:''}</div></div>
+  ${al.length?`<div class="panel"><h2>Needs you</h2>${al.map(a=>`<div class="row"><div class="s" style="color:var(--ink)">${esc(a.txt)}</div><span class="pill ${a.cls}">${a.cls==='p-bad'?'Overdue':a.cls==='p-warn'?'Soon':'Coming up'}</span></div>`).join('')}</div>`:''}
+  <div class="grid g2">
+    <div class="panel"><h2>Logins and systems <span class="label">passwords stay in your password manager</span></h2>${linkList(cl,'access')}${addForm(cl,'access',[{name:'label',label:'What it is',req:true,full:true},{name:'url',label:'Link',type:'url',full:true},{name:'note',label:'Note (which login, what it is for)',full:true}],'Add a login or system')}</div>
+    <div class="panel"><h2>Client links</h2>${linkList(cl,'links')}${addForm(cl,'links',[{name:'label',label:'What it is',req:true,full:true},{name:'url',label:'Link',type:'url',req:true,full:true},{name:'note',label:'Note',full:true}],'Add a link')}</div>
+  </div>
+  <div class="panel"><h2>Send schedule <span class="label">${sentN} of ${sends.length} sent</span></h2>${sends.length?`<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>${sends.map(s=>`<tr class="${s.date&&s.date<t&&!['Sent','Skipped'].includes(s.status)?'late':''}"><td class="num" style="white-space:nowrap">${s.date?fmtDay(s.date)+' <span style="color:var(--ink-3)">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(s.date+'T12:00:00').getDay()]+'</span>':'—'}</td><td style="white-space:nowrap">${s.time?fmtTime(s.time)+' '+esc(tzShort(cl.tz)):'Automatic'}</td><td><b>${esc(s.title)}</b>${s.note?`<div style="color:var(--ink-3);font-size:12px">${esc(s.note)}</div>`:''}</td><td><select data-cl-arr="${cl._id}" data-arr="sends" data-i="${s._i}" name="status">${SEND_STATUSES.map(x=>`<option ${x===(s.status||'Planned')?'selected':''}>${x}</option>`).join('')}</select></td><td><button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="sends" data-i="${s._i}" aria-label="Remove">✕</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No sends planned yet.</div>'}
+    ${addForm(cl,'sends',[{name:'date',label:'Date',type:'date',req:true},{name:'time',label:'Time (their time, blank = automatic)',type:'time'},{name:'title',label:'Email',req:true,full:true},{name:'status',label:'Status',type:'select',opts:SEND_STATUSES},{name:'note',label:'Note'}],'Add a send')}</div>
+  <div class="panel"><h2>Targets and results</h2>${tgt?`<div class="tbl-wrap"><table><thead><tr><th>Period</th><th class="r">Baseline</th><th class="r">Target</th><th class="r">Actual</th><th>Result</th><th></th></tr></thead><tbody>${tgt}</tbody></table></div>`:'<div class="empty">No targets set.</div>'}
+    ${addForm(cl,'targets',[{name:'period',label:'Period',req:true},{name:'metric',label:'What is measured'},{name:'baseline',label:'Baseline (A$)',type:'number',step:'0.01'},{name:'target',label:'Target (A$)',type:'number',step:'0.01',req:true},{name:'feeAtStake',label:'Fee depends on it (A$, 0 if not)',type:'number',step:'0.01',val:'0'},{name:'note',label:'Note',full:true}],'Add a target')}</div>
+  <div class="grid g2">
+    <div class="panel"><h2>Invoices</h2>${inv?`<div class="tbl-wrap"><table><thead><tr><th>For</th><th class="r">Amount</th><th>Issue</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${inv}</tbody></table></div>`:'<div class="empty">No invoices yet.</div>'}
+      ${addForm(cl,'invoices',[{name:'label',label:'For',req:true},{name:'amount',label:'Amount (A$, ex GST)',type:'number',step:'0.01',req:true},{name:'issueDate',label:'Issue date',type:'date'},{name:'dueDate',label:'Due date',type:'date'},{name:'status',label:'Status',type:'select',opts:INV_STATUSES},{name:'note',label:'Note'}],'Add an invoice')}</div>
+    <div class="panel"><h2>Key dates</h2>${kd.length?kd.map(k=>`<div class="row"><div style="min-width:0"><div class="t">${fmtDay(k.date)} <span style="color:var(--ink-3)">${k.date?fmtRel(k.date):''}</span></div><div class="s">${esc(k.label)}</div></div><button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="keyDates" data-i="${k._i}" aria-label="Remove">✕</button></div>`).join(''):'<div class="empty">No key dates yet.</div>'}
+      ${addForm(cl,'keyDates',[{name:'date',label:'Date',type:'date',req:true},{name:'label',label:'What happens',req:true}],'Add a date')}</div>
+  </div>
+  <div class="panel"><h2>Account details</h2><div class="fields" data-cl-fields="${cl._id}">
+    <div class="field"><label>Status</label><select name="status">${CLIENT_STATUSES.map(s=>`<option ${s===(cl.status||'Onboarding')?'selected':''}>${s}</option>`).join('')}</select></div>
+    ${inp('clf-service','service','Service',cl.service)}
+    ${inp('clf-start','startDate','Start date',cl.startDate,'date')}
+    ${inp('clf-end','endDate','End date (blank = ongoing)',cl.endDate,'date')}
+    ${inp('clf-fee','fee','Monthly fee (A$, ex GST)',cl.fee,'number')}
+    <div class="field"><label>Send time zone</label><select name="tz">${['Australia/Perth','Australia/Adelaide','Australia/Darwin','Australia/Brisbane','Australia/Sydney','Australia/Melbourne','Australia/Hobart'].map(z=>`<option value="${z}" ${z===(cl.tz||'Australia/Perth')?'selected':''}>${tzShort(z)}</option>`).join('')}</select></div>
+    ${inp('clf-cn','contactName','Main contact',cl.contactName)}
+    ${inp('clf-ce','contactEmail','Contact email',cl.contactEmail,'email')}
+    ${inp('clf-cp','contactPhone','Contact phone',cl.contactPhone,'tel')}
+    ${inp('clf-fn','feeNote','Fee note',cl.feeNote)}
+    <div class="field full"><label for="clf-notes">Notes</label><textarea id="clf-notes" name="notes" rows="4">${esc(cl.notes||'')}</textarea></div>
+  </div><div class="actions" style="margin-top:12px"><button class="btn sm ghost" data-act="cl-delete" data-id="${cl._id}">Remove client</button></div></div>`;
 }
 
 /* ---------- TODAY ---------- */
@@ -1423,18 +1519,29 @@ function modalInner(){
     <div class="field full"><label>Or upload a file</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" data-act="pick-file">Choose file</button><span id="nd-file" style="color:var(--ink-3);font-size:12.5px">${m.file?esc(m.file.name):'Any file up to 25 MB'}</span></div></div>
     ${inp('nd-notes','notes','Notes','','text',true)}</div><div class="actions"><button class="btn primary" ${m.busy?'disabled':''}>${m.busy?'Uploading…':'Attach'}</button><button type="button" class="btn" data-act="close-modal">Cancel</button></div></form></div>`; }
   if(m.type==='confirm'){ return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><div class="box"><h2>${esc(m.title)}</h2><p style="margin:0;color:var(--ink-2)">${esc(m.text)}</p><div class="actions"><button class="btn primary" data-act="confirm-yes">${esc(m.yes||'Delete')}</button><button class="btn" data-act="close-modal">Cancel</button></div></div></div>`; }
+  if(m.type==='new-client'){ const cs=list(S.companies).filter(c=>!S.clients['cl-'+slug(c.name||c._id)]).sort((a,b)=>{ const w=x=>oppsOf(x._id).some(o=>['won','proposal','negotiation','meeting'].includes(stageRole(o.stage)))?0:1; return w(a)-w(b)||(a.name||'').localeCompare(b.name||''); });
+    return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><form class="box" data-form="new-client" data-track><h2>New client</h2><div class="fields"><div class="field full"><label for="nc-co">Which lead signed?</label><select id="nc-co" name="companyId">${cs.map(c=>`<option value="${c._id}">${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="field"><label for="nc-sv">Service</label><select id="nc-sv" name="service"><option>Email marketing</option><option>Website</option><option>Website and email marketing</option></select></div>${inp('nc-fee','fee','Monthly fee (A$, ex GST)',setting('coreMrr')||750,'number')}${inp('nc-st','startDate','Start date',today(),'date')}${inp('nc-en','endDate','End date (blank = ongoing)','','date')}
+    <div class="field"><label for="nc-tz">Their time zone</label><select id="nc-tz" name="tz">${['Australia/Perth','Australia/Adelaide','Australia/Darwin','Australia/Brisbane','Australia/Sydney','Australia/Melbourne','Australia/Hobart'].map(z=>`<option value="${z}">${tzShort(z)}</option>`).join('')}</select></div></div>
+    <p style="color:var(--ink-3);font-size:13px;margin:10px 0 0">Their agreement, planning page and platform links are copied across from the lead's files.</p><div class="actions"><button class="btn primary">Add client</button><button type="button" class="btn" data-act="close-modal">Cancel</button></div></form></div>`; }
   if(m.type==='pick-lead'){ return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><form class="box" data-form="pick-lead"><h2>Which lead?</h2><div class="field"><label for="pk-co">Lead</label><select id="pk-co" name="companyId">${list(S.companies).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${c._id}">${esc(c.name)}</option>`).join('')}</select></div><div class="actions"><button class="btn primary">Continue</button><button type="button" class="btn" data-act="close-modal">Cancel</button></div></form></div>`; }
   return '';
 }
 
 /* ---------- events ---------- */
-window.addEventListener('hashchange',()=>{ if(/^#open=/.test(location.hash)){ openFromHash(); render(); return; } const v=(location.hash||'#today').slice(1); if(VIEWS.some(x=>x[0]===v)){ S.view=v; render(); window.scrollTo(0,0);} });
+window.addEventListener('hashchange',()=>{ if(/^#open=/.test(location.hash)){ openFromHash(); render(); return; } const cm=location.hash.match(/^#client=([\w-]+)/); if(cm){ S.view='clients'; S.clientOpen=cm[1]; render(); window.scrollTo(0,0); return; } if(location.hash==='#clients') S.clientOpen=null; const v=(location.hash||'#today').slice(1); if(VIEWS.some(x=>x[0]===v)){ S.view=v; render(); window.scrollTo(0,0);} });
 document.addEventListener('click', async e=>{
   if(e.target.closest('[data-stop]')) return;
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act, id=el.dataset.id;
   switch(act){
     case 'open': S.open=id; S.compose=null; renderOverlay(); break;
+    case 'client': S.clientOpen=id; S.view='clients'; history.replaceState(null,'',location.pathname+'#client='+id); render(); window.scrollTo(0,0); break;
+    case 'client-back': S.clientOpen=null; history.replaceState(null,'',location.pathname+'#clients'); render(); window.scrollTo(0,0); break;
+    case 'cl-copy': { const u=el.dataset.url||''; try{ await navigator.clipboard.writeText(u); toast('Link copied'); }catch(_){ toast('Could not copy'); } break; }
+    case 'cl-del': { const cl=S.clients[id]; if(!cl) break; const arr=(cl[el.dataset.arr]||[]).slice(); const it=arr[+el.dataset.i]; if(!it) break; S.modal={type:'confirm',title:'Remove this?',text:(it.label||it.title||it.period||'This item')+' is removed from '+clientName(cl)+'.',run:async()=>{ arr.splice(+el.dataset.i,1); await patch('clients',id,{[el.dataset.arr]:arr,updatedAt:nowIso()}); }}; renderOverlay(); break; }
+    case 'cl-delete': { const cl=S.clients[id]; S.modal={type:'confirm',title:'Remove '+clientName(cl)+' from Clients?',text:'Only the client page is removed. The lead record, emails and files stay.',run:async()=>{ S.clientOpen=null; await del('clients',id); }}; renderOverlay(); break; }
+    case 'new-client': S.modal={type:'new-client'}; renderOverlay(); break;
     case 'close': S.open=null; S.compose=null; renderOverlay(); break;
     case 'close-modal': S.modal=null; renderOverlay(); flush(); break;
     case 'ttab': S.todayTab=el.dataset.k; render(); break;
@@ -1484,6 +1591,8 @@ document.addEventListener('change', async e=>{
   if(t.dataset.angleFor){ await patch('acts',t.dataset.angleFor,{angle:t.value}); flush(); return; }
   if(t.dataset.imgFor){ await patch('acts',t.dataset.imgFor,{hasImage:t.checked}); return; }
   const tf=t.closest('[data-task-fields]'); if(tf && t.name){ const v=t.value; if(t.name==='title'&&!v.trim()){ toast('A task needs a name'); return; } await patch('tasks',tf.dataset.taskFields,{[t.name]:t.name==='title'?v.trim():v}); flush(); return; }
+  if(t.dataset.clArr){ const cl=S.clients[t.dataset.clArr]; if(!cl) return; const arr=(cl[t.dataset.arr]||[]).map(x=>Object.assign({},x)); const it=arr[+t.dataset.i]; if(!it) return; let v=t.value; if(t.name==='actual') v=v===''?'':Number(v); it[t.name]=v; if(t.dataset.arr==='sends'&&t.name==='status'&&v==='Approved'&&!it.approvedAt) it.approvedAt=nowIso(); if(t.dataset.arr==='invoices'&&t.name==='status'&&v==='Paid') it.paidAt=nowIso(); await patch('clients',cl._id,{[t.dataset.arr]:arr,updatedAt:nowIso()}); flush(); return; }
+  const clf=t.closest('[data-cl-fields]'); if(clf && t.name){ let v=t.value; if(t.name==='fee') v=v===''?'':Number(v); else if(typeof v==='string' && t.tagName!=='TEXTAREA') v=v.trim(); await patch('clients',clf.dataset.clFields,{[t.name]:v,updatedAt:nowIso()}); flush(); return; }
   const co=t.closest('[data-co]'); if(co && t.name){ await patch('companies',co.dataset.co,{[t.name]:t.value.trim(),updatedAt:nowIso()}); flush(); return; }
   const hf=t.closest('[data-hold-for]'); if(hf && t.name){ const id=hf.dataset.holdFor, o=S.opps[id]; const h=Object.assign({},o.onHold||{},{[t.name]:t.value}); const data={onHold:h}; if(t.name==='revisitOn'&&t.value) data.nextFollowUp=t.value; await updateOpp(id,data); flush(); return; }
   const of=t.closest('[data-opp-fields]'); if(of && t.name){ let v=t.value; if(['mrr','setupFee','value','retainerScore','higgsCredits'].includes(t.name)) v=t.value===''?'':Number(t.value); const data={[t.name]:v}; if(t.name==='proposalStatus'&&v==='Sent'&&!S.opps[of.dataset.oppFields].proposalSentAt) data.proposalSentAt=nowIso(); await updateOpp(of.dataset.oppFields,data); flush(); return; }
@@ -1527,6 +1636,18 @@ document.addEventListener('submit', async e=>{
       if(fd.kind==='Mockup' && oppId && !S.opps[oppId].mockupUrl && !assetId) await updateOpp(oppId,{mockupUrl:url});
       if(fd.kind==='Proposal' && oppId){ await updateOpp(oppId,{proposalUrl:url}); }
       done(); S.modal=null; renderOverlay(); toast('Attached'); break; }
+    case 'cl-add': { const id=f.dataset.id, arr=f.dataset.arr, cl=S.clients[id]; if(!cl) break; const item=Object.assign({id:rid('x')},fd);
+      ['baseline','target','feeAtStake','amount'].forEach(k=>{ if(k in item) item[k]=item[k]===''?'':Number(item[k]); });
+      if(arr==='invoices') item.gst=true; if(arr==='targets') item.actual='';
+      if(item.url && !/^https?:\/\//i.test(item.url)) item.url='https://'+item.url;
+      await patch('clients',id,{[arr]:(cl[arr]||[]).concat([item]),updatedAt:nowIso()}); done(); toast('Added'); break; }
+    case 'new-client': { const cid=fd.companyId; if(!cid){ toast('Choose the lead'); return; } const c=S.companies[cid]||{}; const id='cl-'+slug(c.name||cid); if(S.clients[id]){ S.modal=null; renderOverlay(); S.clientOpen=id; S.view='clients'; render(); toast('Already a client'); break; }
+      const os=oppsOf(cid); const o=os.find(x=>x.pipeline===(fd.service==='Website'?'web':'email'))||os[0]||{};
+      const docs=list(S.docs).filter(d=>d.companyId===cid); const links=[];
+      docs.forEach(d=>{ if(d.clientLink) links.push({label:(d.kind||'Link')+' (client link)',url:d.clientLink,note:'Send this one to the client'}); if(d.tseLink) links.push({label:(d.kind||'Link')+' (your link)',url:d.tseLink,note:'Yours only'}); if(d.url && !d.clientLink && d.kind!=='Platform') links.push({label:d.name||d.kind||'Link',url:d.url,note:''}); });
+      const access=docs.filter(d=>d.kind==='Platform').map(d=>({label:d.name||'Platform',url:d.url,note:''}));
+      await put('clients',id,{companyId:cid,oppId:o._id||'',name:c.name||'',service:fd.service||'Email marketing',status:'Onboarding',startDate:fd.startDate||today(),endDate:fd.endDate||'',fee:fd.fee===''?'':Number(fd.fee),tz:fd.tz||'Australia/Perth',contactName:c.contactName||'',contactEmail:c.email||'',contactPhone:c.phone||'',access,links,sends:[],targets:[],invoices:[],keyDates:[],notes:'',createdAt:nowIso()});
+      done(); S.modal=null; renderOverlay(); S.clientOpen=id; S.view='clients'; history.replaceState(null,'',location.pathname+'#client='+id); render(); toast('Client added'); break; }
     case 'pick-lead': S.modal=null; S.open=fd.companyId; S.compose={cid:fd.companyId,kind:'email'}; renderOverlay(); break;
     case 'compose': {
       const cid=f.dataset.cid, k=f.dataset.kind; const dateIso=fd.date&&fd.date!==today()?new Date(fd.date+'T09:00:00').toISOString():nowIso();
