@@ -1023,6 +1023,15 @@ function trkLine(o){ const t=o&&o.track; if(!t||!t.sentAt) return ''; const b=[]
   if(t.opens) b.push('opened'+(t.opens>1?' ×'+t.opens:''));
   return b.length?b.join(' · '):'Sent, no activity yet'; }
 function hotPill(o){ return isHot(o)?`<span class="pill p-good" title="${esc(o.track.hotReason||'')}">Hot</span>`:''; }
+/* Proposal page engagement (5 Nov 2026): the rollup splits proposal-page sessions out into track.proposal. Shown once the lead has a Proposal file or a proposal visit. */
+function propHtml(o,box){ const t=o.track||{}, p=t.proposal||{};
+  const doc=list(S.docs).find(d=>d.kind==='Proposal'&&(d.oppId===o._id||(!d.oppId&&d.companyId===o.companyId)));
+  if(!doc && !(p.visits||p.clicks)) return '';
+  const head=`<div style="display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:14px 0 8px;font-size:13px;color:var(--ink-3)"><b style="color:var(--ink)">Proposal</b>${doc&&doc.url?`<a href="${esc(doc.url)}?qa=1" target="_blank" rel="noopener" data-stop style="color:var(--ink-3)">view page</a>`:''}</div>`;
+  if(!p.visits && !p.clicks) return head+`<div style="font-size:13px;color:var(--ink-3)">Not opened yet.</div>`;
+  const links=(p.clickedLinks||[]).map(h=>esc(String(h).replace(/^mailto:[^?]*\?subject=.*/,'Let\u2019s go button').replace(/^\.\.\/?$/,'See the three emails')));
+  return head+`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">${box('Proposal opens',p.visits||0)}${box('Time on proposal',secsTxt(p.engagedSecs))}${box('Reached price',p.readPrice?'Yes':'No')}${box('Clicks',p.clicks||0)}</div>
+    <div style="font-size:13px;margin-top:8px;line-height:1.55">${p.firstSeenAt?`First opened: <b>${esc(whenTxt(p.firstSeenAt))}</b><br>`:''}${p.lastSeenAt&&p.lastSeenAt!==p.firstSeenAt?`Last on the proposal: <b>${esc(whenTxt(p.lastSeenAt))}</b><br>`:''}${links.length?`Clicked: ${links.join('; ')}<br>`:''}</div>`; }
 function trkHtml(o){ if(!o.trackToken) return ''; const t=o.track||{};
   const box=(l,v)=>`<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;min-width:0"><div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)">${l}</div><div style="font-size:18px;font-weight:600">${v}</div></div>`;
   if(!t.sentAt) return `<div style="margin:10px 0;color:var(--ink-3);font-size:13px">Tracking is on. Engagement shows here once the email is logged as sent.${t.preSendEvents?' ('+t.preSendEvents+' visits before sending, ignored.)':''}</div>`;
@@ -1037,6 +1046,7 @@ function trkHtml(o){ if(!o.trackToken) return ''; const t=o.track||{};
       ${clicks.length?`Clicked: ${clicks.map(c=>esc(String(c).replace('|',' → '))).join('; ')}<br>`:''}
       ${t.lastOpenAt?`Last open: ${esc(whenTxt(t.lastOpenAt))} <button class="btn sm ghost" style="padding:2px 8px;font-size:12px;margin-left:4px" data-act="not-me" data-id="${esc(o._id)}" title="Clears this open if it was you viewing the email in Gmail">That was me</button><br>`:''}
     </div>
+    ${propHtml(o,box)}
     <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">*Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images. Visits and clicks are the real signal.</div>
   </div>`; }
 function phoneLink(c,cls){ return c.phone?`<a class="${cls||''}" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a>`:''; }
