@@ -604,7 +604,20 @@ function unanswered(cid){ const i=lastIn(cid); if(!i) return null; const o=actsO
 
 /* ---------- writes ---------- */
 async function put(col,id,data){ await write(col,id,data); }
-async function patch(col,id,data){ const key=col==='settings'?null:STATEKEY[TABLE[col]]; const cur=col==='settings'?(S.settings||{}):(S[key][id]||{}); const merged=Object.assign({},cur,data); delete merged._id; await write(col,id,merged); }
+/* patch: show the change at once, then send ONLY the changed fields. The database merges them into the stored record
+   (rpc crm_merge), so a stale copy here can never wipe what the Gmail sync, tracking or the sweeps wrote in the meantime. */
+async function patch(col,id,data){
+  if(!sb||!user) return toast('Sign in first');
+  const key=col==='settings'?null:STATEKEY[TABLE[col]]; const cur=col==='settings'?(id==='main'?(S.settings||{}):(S.extra[id]||{})):(S[key][id]||{});
+  const delta=Object.assign({},data); delete delta._id;
+  const merged=Object.assign({},cur,delta); delete merged._id;
+  if(col!=='settings') S[key]=Object.assign({},S[key],{[id]:Object.assign({},merged,{_id:id})}); else if(id==='main') S.settings=merged; else S.extra[id]=merged;
+  schedule();
+  const company=['opps','acts','docs','tasks','clients'].includes(col)?(merged.companyId||null):null;
+  const {data:out,error}=await sb.rpc('crm_merge',{p_table:TABLE[col],p_id:id,p_data:delta,p_company:company});
+  if(error){ if(/crm_merge|function|schema cache/i.test(error.message||'')){ await write(col,id,merged); return; } handleDbErr(error); throw error; }
+  if(out && col!=='settings' && S[key][id]){ S[key]=Object.assign({},S[key],{[id]:Object.assign({},out,{_id:id})}); schedule(); }
+}
 async function write(col,id,data){
   if(!sb||!user) return toast('Sign in first');
   const clean=Object.assign({},data); delete clean._id;
@@ -1430,11 +1443,22 @@ function viewSettings(){
 function renderOverlay(){
   let el=$('#overlay'); if(!el){ el=document.createElement('div'); el.id='overlay'; document.body.appendChild(el); }
   const keep={}; el.querySelectorAll('[data-keep]').forEach(x=>keep[x.dataset.keep]=x.scrollTop);
+  const held=holdForms(el);
   el.innerHTML=(S.open&&S.companies[S.open]?drawerHtml(S.companies[S.open]):'')+(S.modal?modalHtml():'');
+  restoreForms(el,held);
   el.querySelectorAll('[data-keep]').forEach(x=>{ if(keep[x.dataset.keep]!=null) x.scrollTop=keep[x.dataset.keep]; });
   document.body.classList.toggle('modal-open',!!(S.modal||S.open)); fitViewport();
   renderToast();
 }
+/* Forms marked data-hold keep what you typed (and where the cursor was) when the drawer redraws. */
+function holdForms(root){ const out={}; const a=document.activeElement;
+  root.querySelectorAll('form[data-hold]').forEach(f=>{ const v={}; [...f.elements].forEach(x=>{ if(!x.name) return; v[x.name]=x.type==='checkbox'?x.checked:x.value; });
+    out[f.dataset.hold]={v,dirty:f.dataset.dirty||'',focus:a&&a.form===f?a.name:null,sel:a&&a.form===f&&typeof a.selectionStart==='number'?[a.selectionStart,a.selectionEnd]:null}; });
+  return out; }
+function restoreForms(root,held){ root.querySelectorAll('form[data-hold]').forEach(f=>{ const h=held[f.dataset.hold]; if(!h) return;
+  [...f.elements].forEach(x=>{ if(!x.name||!(x.name in h.v)) return; if(x.type==='checkbox') x.checked=h.v[x.name]; else x.value=h.v[x.name]; });
+  if(h.dirty) f.dataset.dirty=h.dirty;
+  if(h.focus){ const x=f.elements[h.focus]; if(x&&x.focus){ x.focus({preventScroll:true}); if(h.sel) try{ x.setSelectionRange(h.sel[0],h.sel[1]); }catch(_){} } } }); }
 /* Keep modals inside the part of the screen you can see, even with the phone keyboard up. */
 function fitViewport(){ const v=window.visualViewport; const r=document.documentElement.style; if(!v){ r.removeProperty('--vvh'); r.removeProperty('--vvt'); return; } r.setProperty('--vvh',v.height+'px'); r.setProperty('--vvt',v.offsetTop+'px'); }
 if(window.visualViewport){ visualViewport.addEventListener('resize',fitViewport); visualViewport.addEventListener('scroll',fitViewport); }
@@ -1455,7 +1479,7 @@ function drawerHtml(c){
   <div class="d-body" data-keep="drawer">
   ${cp?composerHtml(c,cp,os):''}
   <section class="sec"><h3>Deals <button class="btn sm ghost" data-act="add-opp" data-id="${c._id}">+ Add ${os.some(o=>o.pipeline==='email')&&!os.some(o=>o.pipeline==='web')?'website deal':!os.some(o=>o.pipeline==='email')?'email deal':'deal'}</button></h3>${os.map(o=>oppHtml(o)).join('')||'<div class="empty">No deals yet.</div>'}</section>
-  <section class="sec"><h3>Emails & activity <span class="label">${acts.filter(a=>a.type==='email').length} emails</span></h3>
+  <section class="sec"><h3>Emails & activity ${(n=>`<span class="label">${n} email${n===1?'':'s'}</span>`)(acts.filter(a=>a.type==='email'||a.type==='reply').length)}</h3>
   <div class="timeline">${acts.filter(a=>a.type!=='stage'||true).map(a=>evHtml(a,st)).join('')||'<div class="empty">Nothing logged yet. Log the first email, or press Check Gmail to pull it in.</div>'}</div></section>
   <section class="sec"><h3>Files & mockups</h3>${docs.length?`<div class="files">${docs.map(d=>`<div class="file"><div style="min-width:0"><div class="nm">${esc(d.name||'Untitled')}${d.version?' <span class="mono">v'+esc(d.version)+'</span>':''}</div><div style="color:var(--ink-3);font-size:12px">${esc(d.kind||'File')} · ${fmtDay(d.at)}${d.size?' · '+Math.round(d.size/1024)+' KB':''}${d.notes?' · '+esc(d.notes):''}</div></div><div class="actions">${d.url?`<a class="btn sm" href="${esc(d.url)}" target="_blank" rel="noopener">Open</a>`:d.path?`<button class="btn sm" data-act="open-file" data-id="${d._id}">Open</button>`:''}<button class="btn sm ghost" data-act="del-doc" data-id="${d._id}" aria-label="Remove file">×</button></div></div>`).join('')}</div>`:'<div class="empty">No files yet. Attach the proposal, tick sheet, or the showcase link.</div>'}</section>
   <section class="sec"><h3>Tasks</h3><div>${tasks.length?tasks.map(taskRow).join(''):'<div class="empty">No tasks for this lead.</div>'}</div></section>
@@ -1479,7 +1503,7 @@ function oppHtml(o){
     <div class="field"><label for="o-st-${o._id}">Stage</label><select id="o-st-${o._id}" data-stage-for="${o._id}">${stages(p).map(s=>`<option ${s===o.stage?'selected':''}>${esc(s)}</option>`).join('')}${stages(p).includes(o.stage)?'':`<option selected>${esc(o.stage)}</option>`}</select></div>
     <div class="field"><label for="o-pr-${o._id}">Priority</label><select id="o-pr-${o._id}" name="priority">${['high','normal','low'].map(x=>`<option value="${x}" ${(o.priority||'normal')===x?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select></div>
     ${inp('o-nf-'+o._id,'nextFollowUp','Next follow-up',o.nextFollowUp,'date')}
-    ${inp('o-na-'+o._id,'nextAction','Next step',o.nextAction,'text',false,'placeholder="e.g. Call Tuesday 10am their time"')}
+    <div class="field full"><label for="o-na-${o._id}">Next step</label><textarea id="o-na-${o._id}" name="nextAction" rows="2" placeholder="e.g. Call Tuesday 10am their time">${esc(o.nextAction||'')}</textarea></div>
     ${p==='email'?inp('o-mrr-'+o._id,'mrr','Monthly retainer (A$)'+gstNote(),o.mrr,'number')+inp('o-setup-'+o._id,'setupFee','Setup fee (A$)',o.setupFee,'number'):inp('o-val-'+o._id,'value','Quoted value (A$)'+gstNote(),o.value,'number')+inp('o-pkg-'+o._id,'package','Package',o.package)}
     ${inp('o-mu-'+o._id,'mockupUrl',p==='email'?'Showcase link':'Mockup link',o.mockupUrl,'url',true)}
     <div class="field"><label for="o-ps-${o._id}">Proposal status</label><select id="o-ps-${o._id}" name="proposalStatus">${['','Preparing','Sent','Accepted','Declined'].map(x=>`<option value="${x}" ${(o.proposalStatus||'')===x?'selected':''}>${x||'None'}</option>`).join('')}</select></div>
@@ -1496,12 +1520,39 @@ function evHtml(a,st){
   const ic=inbound?'ic-in':draft?'ic-draft':a.type==='email'?'ic-out':'ic-note';
   const lbl={email:inbound?'IN':'OUT',reply:'IN',call:'TEL',meeting:'MTG',note:'N',proposal:'PRO'}[a.type]||'•';
   const s=st[a._id];
-  const title=a.type==='email'||a.type==='reply'?(a.subject||'(no subject)'):a.type==='call'?'Call'+(a.outcome?' · '+a.outcome:''):a.type==='meeting'?'Meeting':a.type==='note'?'Note':a.subject||a.type;
-  return `<div class="ev"><div class="ic ${ic}">${lbl}</div><div style="min-width:0"><div class="h"><b>${esc(title)}</b><span class="when">${draft?'Draft · ':''}${fmtDay(a.at)}</span></div>
+  const title=a.type==='email'||a.type==='reply'?(a.subject||'(no subject)'):a.type==='call'?'Call'+(a.outcome?' · '+a.outcome:''):a.type==='meeting'?(a.subject||'Meeting'):a.type==='note'?(a.subject||'Note'):a.subject||a.type;
+  if(S.editAct===a._id) return `<div class="ev"><div class="ic ${ic}">${lbl}</div><div style="min-width:0">${actEditorHtml(a)}</div></div>`;
+  const isMail=a.type==='email'||a.type==='reply';
+  return `<div class="ev"><div class="ic ${ic}">${lbl}</div><div style="min-width:0"><div class="h"><b>${esc(title)}</b><span class="when">${draft?'Draft · ':''}${fmtWhen(a.at)}${a.editedAt?' · edited':''}</span></div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${a.type==='email'&&!inbound?`<span class="pill p-plain">${esc(a.angle||guessAngle(a.subject,a.body))}</span>`:''}${s?(s.replied?`<span class="pill p-good">Got a reply in ${s.days}d</span>`:`<span class="pill p-plain">No reply yet</span>`):''}${inbound&&a.outcome?`<span class="pill ${a.outcome==='interested'?'p-good':a.outcome==='no'?'p-bad':'p-warn'}">${esc(a.outcome)}</span>`:''}${a.hasImage?'<span class="pill p-plain">Image</span>':''}</div>
   ${a.body?(open?`<div class="bodybox">${esc(a.body)}</div>`:`<div class="snip" data-act="expand" data-id="${a._id}">${esc(a.body.slice(0,300))}</div>`):''}
-  <div class="actions" style="margin-top:6px">${a.body?`<button class="btn sm ghost" data-act="expand" data-id="${a._id}">${open?'Hide':'Show full email'}</button>`:''}${draft?`<button class="btn sm" data-act="mark-sent" data-id="${a._id}">I sent this</button>`:''}${a.gmailThreadId?`<a class="btn sm ghost" target="_blank" rel="noopener"${gmWarn(a)} href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Gmail</a>`:''}<button class="btn sm ghost" data-act="del-act" data-id="${a._id}">Delete</button></div></div></div>`;
+  <div class="actions" style="margin-top:6px">${a.body&&(open||a.body.length>140||/\n/.test(a.body))?`<button class="btn sm ghost" data-act="expand" data-id="${a._id}">${open?'Hide':isMail?'Show full email':'Show all'}</button>`:''}<button class="btn sm ghost" data-act="edit-act" data-id="${a._id}">Edit</button>${draft?`<button class="btn sm" data-act="mark-sent" data-id="${a._id}">I sent this</button>`:''}${a.gmailThreadId?`<a class="btn sm ghost" target="_blank" rel="noopener"${gmWarn(a)} href="https://mail.google.com/mail/u/?authuser=${OUR}#all/${esc(a.gmailThreadId)}">Gmail</a>`:''}<button class="btn sm ghost" data-act="del-act" data-id="${a._id}">Delete</button></div></div></div>`;
 }
+/* Shows the day, plus the time for anything logged with one (not the 9am placeholder of a back-dated entry). */
+function fmtWhen(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return fmtDay(iso); const day=fmtDay(iso); if(iso.length<=10) return day;
+  return day+' · '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).replace(' ','').toLowerCase(); }
+const CALL_OUTCOMES=['No answer','Left voicemail','Spoke, interested','Spoke, not now','Spoke, not interested','Booked a meeting'];
+const REPLY_OUTCOMES=[['interested','Interested'],['question','Question'],['not now','Not now'],['no','Not interested'],['meeting','Booked a call'],['auto-reply','Auto-reply']];
+/* Edit any logged entry in place: when it happened, the outcome, the subject and what was said. */
+function actEditorHtml(a){
+  const d=a.at?new Date(a.at):new Date(); const day=localDay(d), tm=pad(d.getHours())+':'+pad(d.getMinutes());
+  const os=oppsOf(a.companyId);
+  const fromGmail=a.source==='gmail'||!!a.gmailMessageId;
+  const isMail=a.type==='email'||a.type==='reply';
+  let f=`${inp('ea-date','date','Date',day,'date')}${inp('ea-time','time','Time',tm,'time')}`;
+  if(a.type==='call') f+=`<div class="field"><label for="ea-out">Outcome</label><select id="ea-out" name="outcome">${CALL_OUTCOMES.concat(CALL_OUTCOMES.includes(a.outcome)||!a.outcome?[]:[a.outcome]).map(x=>`<option ${x===a.outcome?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`;
+  if(a.type==='reply'||(a.type==='email'&&isInbound(a))) f+=`<div class="field"><label for="ea-out">How it landed</label><select id="ea-out" name="outcome"><option value="">Not set</option>${REPLY_OUTCOMES.map(([v,l])=>`<option value="${v}" ${v===a.outcome?'selected':''}>${l}</option>`).join('')}</select></div>`;
+  if(a.type==='email'&&!isInbound(a)) f+=`<div class="field"><label for="ea-st">Status</label><select id="ea-st" name="status"><option value="sent" ${a.status==='sent'?'selected':''}>Sent</option><option value="draft" ${a.status==='draft'?'selected':''}>Draft, not sent</option></select></div>`;
+  if(isMail||a.type==='meeting'||a.type==='note') f+=inp('ea-subj','subject',a.type==='note'?'Heading (optional)':'Subject',a.subject||'','text',true);
+  if(os.length>1) f+=`<div class="field"><label for="ea-opp">Deal</label><select id="ea-opp" name="oppId"><option value="">Both</option>${os.map(o=>`<option value="${o._id}" ${a.oppId===o._id?'selected':''}>${o.pipeline==='email'?'Email':'Website'}</option>`).join('')}</select></div>`;
+  f+=`<div class="field full"><label for="ea-body">${a.type==='call'?'Notes':a.type==='note'?'Note':isMail?(isInbound(a)?'What they said':'What you said'):'Details'}</label><textarea id="ea-body" name="body" rows="${Math.min(14,Math.max(4,((a.body||'').match(/\n/g)||[]).length+2))}">${esc(a.body||'')}</textarea></div>`;
+  const warn=fromGmail&&a.type==='email'&&a.status==='draft'?'This draft is matched to Gmail by its subject. Keep the subject the same as the Gmail draft, or the sync will not mark it sent.':fromGmail?'This came in from Gmail. Editing here changes the CRM copy only, not the email itself.':'';
+  return `<form class="composer" data-form="edit-act" data-track data-hold="ea-${a._id}" data-id="${a._id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>Edit ${{email:'email',reply:'reply',call:'call',meeting:'meeting',note:'note',proposal:'entry'}[a.type]||'entry'}</b><button type="button" class="btn sm ghost" data-act="cancel-edit">Cancel</button></div>
+    ${warn?`<div style="color:var(--ink-3);font-size:12.5px">${warn}</div>`:''}<div class="fields">${f}</div><div class="actions"><button class="btn primary">Save changes</button></div></form>`;
+}
+/* The deal a call or note is about: the one chosen, else the live email deal, else any live deal. */
+function mainOpp(cid){ const os=oppsOf(cid).filter(isActive); return os.find(o=>o.pipeline==='email')||os[0]||null; }
+function nextMonday(){ const d=new Date(today()+'T12:00:00'); d.setDate(d.getDate()+((8-d.getDay())%7||7)); return localDay(d); }
 function composerHtml(c,cp,os){
   const k=cp.kind; const t=today();
   const oppSel=os.length>1?`<div class="field"><label for="cp-opp">Deal</label><select id="cp-opp" name="oppId"><option value="">Both</option>${os.map(o=>`<option value="${o._id}">${o.pipeline==='email'?'Email':'Website'}</option>`).join('')}</select></div>`:'';
@@ -1515,10 +1566,14 @@ function composerHtml(c,cp,os){
     <div class="field full"><label for="cp-body">What they said</label><textarea id="cp-body" name="body" rows="6"></textarea></div>
     ${inp('cp-date','date','Date',t,'date')}<div class="field"><label for="cp-out">How it landed</label><select id="cp-out" name="outcome"><option value="interested">Interested</option><option value="question">Question</option><option value="not now">Not now</option><option value="no">Not interested</option><option value="meeting">Booked a call</option></select></div>
     ${inp('cp-obj','objection','Objection, if any','','text',true)}</div>`;
-  if(k==='call') f=`<div class="fields">${inp('cp-date','date','Date',t,'date')}<div class="field"><label for="cp-out">Outcome</label><select id="cp-out" name="outcome"><option>No answer</option><option>Left voicemail</option><option>Spoke, interested</option><option>Spoke, not now</option><option>Spoke, not interested</option><option>Booked a meeting</option></select></div>
-    <div class="field full"><label for="cp-body">Notes</label><textarea id="cp-body" name="body" rows="4"></textarea></div>${inp('cp-next','next','Next follow-up','', 'date')}${oppSel}</div>`;
-  if(k==='note') f=`<div class="fields"><div class="field full"><label for="cp-body">Note</label><textarea id="cp-body" name="body" rows="4" required></textarea></div></div>`;
-  return `<form class="composer" data-form="compose" data-track data-cid="${c._id}" data-kind="${k}"><div style="display:flex;justify-content:space-between;align-items:center"><b>${{email:'Log an email you sent or drafted',reply:'Log their reply',call:'Log a call',note:'Add a note'}[k]}</b><button type="button" class="btn sm ghost" data-act="cancel-compose">Cancel</button></div>${f}<div class="actions"><button class="btn primary">Save</button>${k==='email'?'<span style="color:var(--ink-3);font-size:12px;align-self:center">Saving a sent email moves the deal to outreach and books the nudge.</span>':''}</div></form>`;
+  if(k==='call'){ const mo=mainOpp(c._id); const cur=mo&&mo.nextFollowUp?`Follow-up now: ${fmtDay(mo.nextFollowUp)} (${fmtRel(mo.nextFollowUp)})${mo.nextAction?' · '+esc(mo.nextAction):''}`:'No follow-up date set yet.';
+    f=`<div class="fields">${inp('cp-date','date','Date',t,'date')}<div class="field"><label for="cp-out">Outcome</label><select id="cp-out" name="outcome">${CALL_OUTCOMES.map(x=>`<option>${x}</option>`).join('')}</select></div>
+    <div class="field full"><label for="cp-body">Notes</label><textarea id="cp-body" name="body" rows="4"></textarea></div>
+    <div class="field full" style="color:var(--ink-3);font-size:12.5px">${cur}</div>
+    <div class="field"><label for="cp-next">Next follow-up</label><input id="cp-next" name="next" type="date" value=""><div class="actions" style="margin-top:6px"><button type="button" class="btn sm ghost" data-act="cp-next" data-d="1">Tomorrow</button><button type="button" class="btn sm ghost" data-act="cp-next" data-d="2">In 2 days</button><button type="button" class="btn sm ghost" data-act="cp-next" data-d="mon">Next Mon</button></div></div>
+    ${inp('cp-na','nextAction','Next step','','text',false,'placeholder="e.g. Call Leigh back Tue 10am their time"')}${oppSel}</div>`; }
+  if(k==='note') f=`<div class="fields"><div class="field full"><label for="cp-body">Note</label><textarea id="cp-body" name="body" rows="4" required></textarea></div>${inp('cp-date','date','Date',t,'date')}</div>`;
+  return `<form class="composer" data-form="compose" data-track data-hold="cp-${c._id}-${k}" data-cid="${c._id}" data-kind="${k}"><div style="display:flex;justify-content:space-between;align-items:center"><b>${{email:'Log an email you sent or drafted',reply:'Log their reply',call:'Log a call',note:'Add a note'}[k]}</b><button type="button" class="btn sm ghost" data-act="cancel-compose">Cancel</button></div>${f}<div class="actions"><button class="btn primary">Save</button>${k==='email'?'<span style="color:var(--ink-3);font-size:12px;align-self:center">Saving a sent email moves the deal to outreach and books the nudge.</span>':''}</div></form>`;
 }
 
 /* ---------- MODALS ---------- */
@@ -1567,7 +1622,7 @@ document.addEventListener('click', async e=>{
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act, id=el.dataset.id;
   switch(act){
-    case 'open': S.open=id; S.compose=null; renderOverlay(); break;
+    case 'open': S.open=id; S.compose=null; S.editAct=null; renderOverlay(); break;
     case 'client': S.clientOpen=id; S.view='clients'; history.replaceState(null,'',location.pathname+'#client='+id); render(); window.scrollTo(0,0); break;
     case 'client-back': S.clientOpen=null; history.replaceState(null,'',location.pathname+'#clients'); render(); window.scrollTo(0,0); break;
     case 'cl-copy': { const u=el.dataset.url||''; try{ await navigator.clipboard.writeText(u); toast('Link copied'); }catch(_){ toast('Could not copy'); } break; }
@@ -1575,7 +1630,7 @@ document.addEventListener('click', async e=>{
     case 'cl-delete': { const cl=S.clients[id]; S.modal={type:'confirm',title:'Remove '+clientName(cl)+' from Clients?',text:'Only the client page is removed. The lead record, emails and files stay.',run:async()=>{ S.clientOpen=null; await del('clients',id); }}; renderOverlay(); break; }
     case 'new-client': S.modal={type:'new-client'}; renderOverlay(); break;
     case 'cl-logo-del': await patch('clients',id,{logo:'',updatedAt:nowIso()}); toast('Logo removed'); break;
-    case 'close': S.open=null; S.compose=null; renderOverlay(); break;
+    case 'close': S.open=null; S.compose=null; S.editAct=null; renderOverlay(); flush(); break;
     case 'close-modal': S.modal=null; renderOverlay(); flush(); break;
     case 'ttab': S.todayTab=el.dataset.k; render(); break;
     case 'otab': S.outTab=el.dataset.k; render(); break;
@@ -1595,6 +1650,9 @@ document.addEventListener('click', async e=>{
     case 'pick-file': $('#file-up').click(); break;
     case 'compose': S.compose={cid:S.open,kind:el.dataset.k}; renderOverlay(); setTimeout(()=>{ const f=document.querySelector('.composer input,.composer textarea'); if(f) f.focus(); },30); break;
     case 'cancel-compose': S.compose=null; renderOverlay(); flush(); break;
+    case 'edit-act': S.editAct=id; S.expanded[id]=false; renderOverlay(); setTimeout(()=>{ const f=document.querySelector('form[data-form="edit-act"] textarea'); if(f) f.focus({preventScroll:true}); },30); break;
+    case 'cancel-edit': S.editAct=null; renderOverlay(); flush(); break;
+    case 'cp-next': { const f=el.closest('form'); const n=f&&f.elements.next; if(!n) break; const d=el.dataset.d; n.value=d==='mon'?nextMonday():addDays(today(),+d); f.dataset.dirty='1'; break; }
     case 'add-opp': { const os=oppsOf(id); const p=os.some(o=>o.pipeline==='email')&&!os.some(o=>o.pipeline==='web')?'web':!os.some(o=>o.pipeline==='email')?'email':'email'; await createOpp(id,p,{}); toast((p==='web'?'Website':'Email')+' deal added'); break; }
     case 'hold': { const o=S.opps[id]; if(onHold(o)){ await updateOpp(id,{onHold:null, nextFollowUp:today()}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'Off hold',body:'',at:nowIso(),createdAt:nowIso()}); toast('Back in '+o.stage+'. Follow-up set for today'); } else { const back=addDays(today(),60); await updateOpp(id,{onHold:{since:today(),revisitOn:back,reason:''}, nextFollowUp:back}); await put('acts',rid('a'),{companyId:o.companyId,oppId:id,type:'stage',subject:'On hold until '+fmtDay(back),body:'',at:nowIso(),createdAt:nowIso()}); toast('On hold until '+fmtDay(back)+'. Change the date below'); } break; }
     case 'not-me': { el.disabled=true; const {data,error}=await sb.rpc('crm_track_dismiss_open',{p_opp:id}); if(error){ el.disabled=false; toast('Could not clear it: '+error.message); break; } if(S.opps[id]&&data) S.opps[id].track=data; render(); renderOverlay(); toast('Cleared. That open no longer counts'); break; }
@@ -1616,8 +1674,24 @@ document.addEventListener('click', async e=>{
     case 'open-file': { const d=S.docs[id]; if(!d||!d.path) break; const w=window.open('','_blank'); const {data,error}=await sb.storage.from('crm-files').createSignedUrl(d.path,600); if(error||!data){ if(w) w.close(); toast('Could not open that file'); } else if(w) w.location=data.signedUrl; else location.href=data.signedUrl; break; }
   }
 });
-document.addEventListener('change', async e=>{
+/* Date boxes: Chrome fires "change" on every keystroke while you type a date, and on each tap in the iPhone picker,
+   so the app used to save 0002-11-04, 0020-11-04, 0202-11-04... and re-sort Today on each one. Now a date only saves
+   once it is a real date (years 2020 to 2100), 600ms after you stop, or straight away when you leave the box. */
+const DATE_WAIT=new Map();
+const okDate=v=>v===''||(/^\d{4}-\d{2}-\d{2}$/.test(v)&&+v.slice(0,4)>=2020&&+v.slice(0,4)<=2100);
+function commitDate(t){ const w=DATE_WAIT.get(t); if(!w) return; clearTimeout(w); DATE_WAIT.delete(t); if(t.value!==t.dataset.saved) onFieldChange(t); }
+document.addEventListener('focusout',e=>{ const t=e.target; if(t&&t.type==='date') commitDate(t); },true);
+document.addEventListener('change', e=>{
   const t=e.target;
+  if(t.type==='date' && !t.closest('form[data-form]') && !t.dataset.filter){
+    if(!okDate(t.value)) return;
+    if(t.dataset.saved===undefined) t.dataset.saved=t.getAttribute('value')||'';
+    clearTimeout(DATE_WAIT.get(t)); DATE_WAIT.set(t,setTimeout(()=>commitDate(t),600)); return;
+  }
+  onFieldChange(t);
+});
+async function onFieldChange(t){
+  if(t.type==='date') t.dataset.saved=t.value;
   if(t.dataset.filter){ S[t.dataset.filter]=t.value; render(); return; }
   if(t.dataset.stageFor){ await moveStage(t.dataset.stageFor,t.value); flush(); return; }
   if(t.dataset.taskDone){ await patch('tasks',t.dataset.taskDone,{done:t.checked,doneAt:t.checked?nowIso():''}); return; }
@@ -1640,12 +1714,12 @@ document.addEventListener('change', async e=>{
   const of=t.closest('[data-opp-fields]'); if(of && t.name){ let v=t.value; if(['mrr','setupFee','value','retainerScore','higgsCredits'].includes(t.name)) v=t.value===''?'':Number(t.value); const data={[t.name]:v}; if(t.name==='proposalStatus'&&v==='Sent'&&!S.opps[of.dataset.oppFields].proposalSentAt) data.proposalSentAt=nowIso(); await updateOpp(of.dataset.oppFields,data); flush(); return; }
   if(t.id==='file-up'){ const f=t.files[0]; t.value=''; if(S.modal&&S.modal.type==='doc'&&f){ S.modal.file=f; const n=$('#nd-name'); const nm=$('#nd-file'); if(nm) nm.textContent=f.name; if(n&&!n.value) n.value=f.name.replace(/\.[^.]+$/,''); } return; }
   if(t.id==='csv-up'){ const f=t.files[0]; t.value=''; if(f) importCsv(await f.text()); return; }
-});
+}
 document.addEventListener('input', e=>{ if(e.target.dataset && e.target.dataset.railsearch!==undefined){ S.q=e.target.value; clearTimeout(window.__rq); window.__rq=setTimeout(()=>{ if(!['leads','email','web'].includes(S.view)) location.hash='#leads'; else render(); setTimeout(()=>{ const n=$('#rail-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length);} },0); },250); return; }
   if(e.target.id==='f-q'){ S.q=e.target.value; clearTimeout(window.__qt); window.__qt=setTimeout(()=>{ const pos=e.target.selectionStart; render(); const n=$('#f-q'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(_){} } },180); }
   if(e.target.id==='nl-name'||e.target.id==='nl-email'||e.target.id==='nl-web'){ const f=e.target.form; const d=findDupe(f.name.value,f.email.value,f.website.value); $('#dupe-warn').innerHTML=d?`<div class="banner warn">Looks like <b>${esc(d.name)}</b> is already here. <button type="button" class="btn sm" data-act="open" data-id="${d._id}">Open it</button></div>`:''; } });
 document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target && e.target.id==='more-q'){ e.preventDefault(); S.q=e.target.value; S.modal=null; renderOverlay(); if(S.view==='leads') render(); else location.hash='#leads'; return; }
-  if(e.key==='Escape'){ if(S.modal){S.modal=null;renderOverlay();} else if(S.compose){S.compose=null;renderOverlay();} else if(S.open){S.open=null;renderOverlay();} } });
+  if(e.key==='Escape'){ if(S.modal){S.modal=null;renderOverlay();} else if(S.editAct){S.editAct=null;renderOverlay();flush();} else if(S.compose){S.compose=null;renderOverlay();flush();} else if(S.open){S.open=null;renderOverlay();} } });
 document.addEventListener('submit', async e=>{
   const f=e.target; if(!f.dataset.form) return; e.preventDefault();
   const fd=Object.fromEntries(new FormData(f).entries());
@@ -1691,14 +1765,36 @@ document.addEventListener('submit', async e=>{
       await put('clients',id,{companyId:cid,oppId:o._id||'',name:c.name||'',service:fd.service||'Email marketing',status:'Onboarding',startDate:fd.startDate||today(),endDate:fd.endDate||'',fee:fd.fee===''?'':Number(fd.fee),tz:fd.tz||'Australia/Perth',contactName:c.contactName||'',contactEmail:c.email||'',contactPhone:c.phone||'',access,links,sends:[],targets:[],invoices:[],keyDates:[],notes:'',createdAt:nowIso()});
       done(); S.modal=null; renderOverlay(); S.clientOpen=id; S.view='clients'; history.replaceState(null,'',location.pathname+'#client='+id); render(); toast('Client added'); break; }
     case 'pick-lead': S.modal=null; S.open=fd.companyId; S.compose={cid:fd.companyId,kind:'email'}; renderOverlay(); break;
+    case 'edit-act': {
+      const id=f.dataset.id, a=S.acts[id]; if(!a){ S.editAct=null; renderOverlay(); return; }
+      if(!okDate(fd.date||'')||!fd.date){ toast('Check the date'); return; }
+      const at=new Date(fd.date+'T'+(fd.time||'09:00')+':00'); if(isNaN(at)){ toast('Check the time'); return; }
+      const ch={at:at.toISOString(),body:fd.body||'',editedAt:nowIso()};
+      ['outcome','subject','status','oppId'].forEach(k=>{ if(k in fd) ch[k]=k==='subject'?fd[k].trim():fd[k]; });
+      const wasDraft=a.type==='email'&&a.status==='draft';
+      await patch('acts',id,ch); done(); S.editAct=null; renderOverlay();
+      if(wasDraft&&ch.status==='sent') await afterSent(a.companyId,ch.oppId!=null?ch.oppId:a.oppId,ch.at);
+      toast('Changes saved'); break; }
     case 'compose': {
-      const cid=f.dataset.cid, k=f.dataset.kind; const dateIso=fd.date&&fd.date!==today()?new Date(fd.date+'T09:00:00').toISOString():nowIso();
+      const cid=f.dataset.cid, k=f.dataset.kind;
+      if(fd.date&&!okDate(fd.date)){ toast('Check the date'); return; } if(fd.next&&!okDate(fd.next)){ toast('Check the follow-up date'); return; }
+      const dateIso=fd.date&&fd.date!==today()?new Date(fd.date+'T09:00:00').toISOString():nowIso();
       const c=S.companies[cid]||{};
       if(k==='email'){ const id=rid('a'); await put('acts',id,{companyId:cid,oppId:fd.oppId||'',type:'email',direction:'out',status:fd.status,subject:fd.subject.trim(),body:fd.body||'',angle:fd.angle||guessAngle(fd.subject,fd.body),hasImage:!!fd.hasImage,to:c.email||'',at:dateIso,createdAt:nowIso()}); if(fd.status==='sent') await afterSent(cid,fd.oppId||'',dateIso); }
       if(k==='reply'){ await put('acts',rid('a'),{companyId:cid,type:'reply',direction:'in',subject:fd.subject||'',body:fd.body||'',outcome:fd.outcome,objection:fd.objection||'',at:dateIso,createdAt:nowIso()}); if(fd.outcome==='meeting') await put('acts',rid('a'),{companyId:cid,type:'meeting',subject:'Call booked',at:dateIso,createdAt:nowIso()}); await afterReply(cid,fd.outcome,dateIso); if(fd.outcome==='meeting'){ for(const o of oppsOf(cid).filter(isActive)){ const s=stages(o.pipeline).find(x=>stageRole(x)==='meeting'); if(s) await moveStage(o._id,s,'Call booked'); } } }
-      if(k==='call'){ await put('acts',rid('a'),{companyId:cid,oppId:fd.oppId||'',type:'call',outcome:fd.outcome,body:fd.body||'',at:dateIso,createdAt:nowIso()}); for(const o of (fd.oppId?[S.opps[fd.oppId]]:oppsOf(cid).filter(isActive))) await updateOpp(o._id,Object.assign({lastContact:dateIso},fd.next?{nextFollowUp:fd.next}:{})); if(/meeting/i.test(fd.outcome)){ await put('acts',rid('a'),{companyId:cid,type:'meeting',subject:'Meeting booked',at:dateIso,createdAt:nowIso()}); } }
-      if(k==='note') await put('acts',rid('a'),{companyId:cid,type:'note',body:fd.body,at:nowIso(),createdAt:nowIso()});
-      done(); S.compose=null; renderOverlay(); toast('Saved'); break; }
+      let msg='Saved';
+      if(k==='call'){ await put('acts',rid('a'),{companyId:cid,oppId:fd.oppId||'',type:'call',outcome:fd.outcome,body:fd.body||'',at:dateIso,createdAt:nowIso()});
+        const na=(fd.nextAction||'').trim();
+        for(const o of (fd.oppId?[S.opps[fd.oppId]].filter(Boolean):oppsOf(cid).filter(isActive))){
+          const ch={lastContact:dateIso};
+          if(fd.next){ ch.nextFollowUp=fd.next; ch.nextAction=na||('Follow up after call ('+fd.outcome.toLowerCase()+', '+fmtDay(localDay(dateIso))+')'); }
+          else if(na) ch.nextAction=na;
+          await updateOpp(o._id,ch);
+        }
+        if(/meeting/i.test(fd.outcome)){ await put('acts',rid('a'),{companyId:cid,type:'meeting',subject:'Meeting booked',at:dateIso,createdAt:nowIso()}); }
+        const mo=mainOpp(cid); if(!fd.next&&mo&&mo.nextFollowUp&&mo.nextFollowUp<today()) msg='Call saved. The follow-up date is still '+fmtDay(mo.nextFollowUp)+' ('+fmtRel(mo.nextFollowUp)+'): set a new one on the deal.'; }
+      if(k==='note') await put('acts',rid('a'),{companyId:cid,type:'note',body:fd.body,at:dateIso,createdAt:nowIso()});
+      done(); S.compose=null; renderOverlay(); toast(msg); break; }
     case 'settings': { const g={emailClientsPerMonth:+fd.emailClientsPerMonth||0,webProjectsPerMonth:+fd.webProjectsPerMonth||0,webRevenuePerMonth:+fd.webRevenuePerMonth||0};
       await saveSettings({goals:g,nudgeDays:+fd.nudgeDays||6,callDays:+fd.callDays||11,gst:fd.gst,coreMrr:+fd.coreMrr||0}); done(); toast('Settings saved'); break; }
     case 'stages': { const sp=s=>s.split('\n').map(x=>x.trim()).filter(Boolean); const st={email:sp(fd.email),web:sp(fd.web)};
