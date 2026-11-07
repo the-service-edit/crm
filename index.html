@@ -480,6 +480,14 @@ td>.tv{display:contents}
 .cl-logo img{max-width:100%;max-height:100%;object-fit:contain;display:block}
 .cl-ini{background:var(--ink);color:var(--surface);border:0;font-weight:600;letter-spacing:.02em}
 .cl-logo-edit{display:flex;gap:14px;align-items:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.cl-appr-link{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+.cl-appr-link.main{background:var(--paper-2,rgba(58,46,37,.05))}
+.cl-appr-link .u{word-break:break-all;color:var(--ink-3);font-size:12px;margin-top:2px}
+.cl-fb{border-top:1px solid var(--line);padding:12px 0}
+.cl-fb:first-of-type{border-top:0}
+.cl-fb>summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.cl-fb>summary::-webkit-details-marker{display:none}
+.cl-fb .b{white-space:pre-wrap;font-size:14px;line-height:1.5;margin-top:8px;padding:10px 12px;background:var(--paper-2,rgba(58,46,37,.05));border-radius:10px}
 .cl-add{margin-top:10px}.cl-add>summary{list-style:none;cursor:pointer;display:inline-flex}.cl-add>summary::-webkit-details-marker{display:none}
 .cl-num{width:120px;text-align:right;padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)}
 tr.late td{background:color-mix(in srgb,var(--bad-bg) 60%,transparent)}
@@ -932,6 +940,7 @@ function clientAlerts(cl){
   (cl.invoices||[]).forEach(i=>{ if(i.status==='Issued' && i.dueDate && i.dueDate<t) out.push({cls:'p-bad',txt:`Invoice ${i.label} is overdue (due ${fmtDay(i.dueDate)})`});
     else if(i.status==='Not yet' && i.issueDate && i.issueDate<=t) out.push({cls:'p-warn',txt:`Invoice ${i.label} is due to be issued (${fmtDay(i.issueDate)})`}); });
   (cl.keyDates||[]).forEach(k=>{ if(k.date && k.date>=t && k.date<=addDays(t,3)) out.push({cls:'p-plain',txt:`${fmtRel(k.date)}: ${k.label}`}); });
+  planFeedback(cl).filter(fbOpen).forEach(a=>out.unshift({cls:'p-warn',txt:`${(a.subject||'').replace(/^Plan:\s*/,'')} (${fmtWhen(a.at)}): read and tick done`,fb:a._id}));
   return out;
 }
 function clientCount(){ return clients().filter(c=>c.status!=='Ended').reduce((n,c)=>n+clientAlerts(c).filter(a=>a.cls!=='p-plain').length,0); }
@@ -952,6 +961,26 @@ function viewClients(){
   <div class="panel"><h2>Sends in the next 14 days</h2>${upcoming.length?upcoming.map(({c,s})=>`<div class="row click" data-act="client" data-id="${c._id}"><div style="min-width:0"><div class="t">${fmtDay(s.date)}${s.time?' · '+fmtTime(s.time)+' '+esc(tzShort(c.tz)):''} · <b>${esc(clientName(c))}</b></div><div class="s">${esc(s.title)}</div></div>${sendPill(s.status)}</div>`).join(''):'<div class="empty">Nothing in the next two weeks.</div>'}</div>`;
 }
 
+/* Approvals: the client's planning-page link up top, plus every note they sent from it (crm_acts source "plan"). */
+function clientPlanLinks(cl){
+  const ls=(cl.links||[]).filter(x=>/\/plan\//.test(x.url||''));
+  let mine=ls.find(x=>/your link|yours only/i.test((x.label||'')+' '+(x.note||'')));
+  let theirs=ls.find(x=>x!==mine);
+  if(!theirs||!mine){ const d=list(S.docs).find(d=>d.companyId===cl.companyId && (d.kind==='Plan'||/\/plan\//.test(d.url||'')));
+    if(d){ if(!theirs&&d.clientLink) theirs={url:d.clientLink}; if(!mine&&d.tseLink) mine={url:d.tseLink}; } }
+  return {theirs,mine};
+}
+function planFeedback(cl){ return list(S.acts).filter(a=>a.companyId===cl.companyId && (a.source==='plan'||/^Plan:/.test(a.subject||''))).sort((a,b)=>(b.at||'').localeCompare(a.at||'')); }
+const fbOpen = a => !a.done && a.party!=='tse' && !/\(TSE test\)/.test(a.subject||'');
+function fbPill(a){ const s=a.subject||''; if(/asked for changes/i.test(s)) return '<span class="pill p-warn">Changes</span>'; if(/approved|OK'd/i.test(s)) return '<span class="pill p-good">Approved</span>'; if(/check-in/i.test(s)) return '<span class="pill p-plain">Check-in</span>'; return '<span class="pill p-plain">Note</span>'; }
+function approvalsPanel(cl){
+  const {theirs,mine}=clientPlanLinks(cl), fb=planFeedback(cl), who=(cl.contactName||'').split(' ')[0]||'the client';
+  const lk=(x,title,sub,main)=>x?`<div class="cl-appr-link${main?' main':''}"><div style="min-width:0"><div class="t"><b>${esc(title)}</b></div><div class="s">${esc(sub)}</div><div class="u">${esc(x.url)}</div></div><div class="actions" style="flex-wrap:nowrap"><button class="btn sm${main?' primary':''}" data-act="cl-copy" data-url="${esc(x.url)}">Copy link</button><a class="btn sm ghost" href="${esc(x.url)}" target="_blank" rel="noopener">Open</a></div></div>`:'';
+  const links=lk(theirs,'Approval link for '+who,'Send this one to '+who+'. Approvals here count as written approval.',true)+lk(mine,'Your link','Yours only. Anything you submit is marked TSE test.',false);
+  const notes=fb.length?fb.map((a,i)=>`<details class="cl-fb"${fbOpen(a)||i<1?' open':''}><summary><div style="min-width:0"><div class="t"><b>${esc((a.subject||'').replace(/^Plan:\s*/,''))}</b></div><div class="s" style="color:var(--ink-3)">${fmtWhen(a.at)}</div></div><span style="display:flex;gap:8px;align-items:center">${fbPill(a)}${fbOpen(a)?`<button class="btn sm primary" data-act="cl-fb-done" data-id="${a._id}">Done</button>`:(a.done?'<span class="pill p-plain">Done</span>':'')}</span></summary><div class="b">${esc((a.body||'').replace(/\nhttps:\/\/\S+\/plan\/\s*$/,''))}</div></details>`).join(''):'<div class="empty">No notes from '+esc(who)+' yet.</div>';
+  if(!theirs && !mine && !fb.length) return '';
+  return `<div class="panel" id="cl-approvals"><h2>Approvals and ${esc(who)}'s notes <span class="label">${fb.filter(fbOpen).length?fb.filter(fbOpen).length+' to action · ':''}${fb.length} note${fb.length===1?'':'s'}</span></h2>${links||'<div class="empty">No planning page link yet. Add it under Client links.</div>'}<div style="margin-top:6px">${notes}</div></div>`;
+}
 function linkList(cl,arr){
   const items=cl[arr]||[];
   return items.length?items.map((x,i)=>`<div class="row"><div style="min-width:0"><div class="t"><b>${esc(x.label)}</b></div>${x.note?`<div class="s">${esc(x.note)}</div>`:''}${x.url?`<div class="s" style="word-break:break-all;color:var(--ink-3)">${esc(x.url)}</div>`:''}</div><div class="actions" style="flex-wrap:nowrap">${x.url?`<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Open</a><button class="btn sm ghost" data-act="cl-copy" data-url="${esc(x.url)}">Copy</button>`:''}<button class="btn sm ghost" data-act="cl-del" data-id="${cl._id}" data-arr="${arr}" data-i="${i}" aria-label="Remove">✕</button></div></div>`).join(''):'<div class="empty">Nothing added yet.</div>';
@@ -975,6 +1004,7 @@ function clientDetail(cl){
     <div class="cl-hero-act">${cl.contactPhone?`<a class="btn" href="${telHref(cl.contactPhone)}">Call ${esc((cl.contactName||'').split(' ')[0])}</a>`:''}${cl.contactEmail?`<a class="btn" href="mailto:${esc(cl.contactEmail)}">Email</a>`:''}${cl.companyId?`<button class="btn" data-act="open" data-id="${cl.companyId}">Lead record</button>`:''}</div></div>
     <div class="cl-hero-stats"><div><span>Monthly fee</span><b>${money(cl.fee)}</b><i>${esc(cl.feeNote||'a month'+gstNote())}</i></div><div><span>Emails sent</span><b>${sentN} of ${sends.length}</b><i>${sends.length-sentN} to go</i></div><div><span>Next send</span><b>${nx?fmtDay(nx.date):'—'}</b><i>${nx?esc(nx.title):'nothing scheduled'}</i></div><div><span>Term</span><b>${cl.endDate?fmtDay(cl.endDate):'Ongoing'}</b><i>${left!=null?(left>=0?left+' days to go':'ended'):'no end date'}${cl.tz?' · '+esc(tzShort(cl.tz))+' time':''}</i></div></div></section>
   ${al.length?`<div class="panel"><h2>Needs you</h2>${al.map(a=>`<div class="row"><div class="s" style="color:var(--ink)">${esc(a.txt)}</div><span class="pill ${a.cls}">${a.cls==='p-bad'?'Overdue':a.cls==='p-warn'?'Soon':'Coming up'}</span></div>`).join('')}</div>`:''}
+  ${approvalsPanel(cl)}
   <div class="grid g2">
     <div class="panel"><h2>Logins and systems <span class="label">passwords stay in your password manager</span></h2>${linkList(cl,'access')}${addForm(cl,'access',[{name:'label',label:'What it is',req:true,full:true},{name:'url',label:'Link',type:'url',full:true},{name:'note',label:'Note (which login, what it is for)',full:true}],'Add a login or system')}</div>
     <div class="panel"><h2>Client links</h2>${linkList(cl,'links')}${addForm(cl,'links',[{name:'label',label:'What it is',req:true,full:true},{name:'url',label:'Link',type:'url',req:true,full:true},{name:'note',label:'Note',full:true}],'Add a link')}</div>
@@ -1625,6 +1655,7 @@ document.addEventListener('click', async e=>{
     case 'open': S.open=id; S.compose=null; S.editAct=null; renderOverlay(); break;
     case 'client': S.clientOpen=id; S.view='clients'; history.replaceState(null,'',location.pathname+'#client='+id); render(); window.scrollTo(0,0); break;
     case 'client-back': S.clientOpen=null; history.replaceState(null,'',location.pathname+'#clients'); render(); window.scrollTo(0,0); break;
+    case 'cl-fb-done': { e.preventDefault(); await patch('acts',id,{done:true,doneAt:nowIso()}); toast('Marked done'); break; }
     case 'cl-copy': { const u=el.dataset.url||''; try{ await navigator.clipboard.writeText(u); toast('Link copied'); }catch(_){ toast('Could not copy'); } break; }
     case 'cl-del': { const cl=S.clients[id]; if(!cl) break; const arr=(cl[el.dataset.arr]||[]).slice(); const it=arr[+el.dataset.i]; if(!it) break; S.modal={type:'confirm',title:'Remove this?',text:(it.label||it.title||it.period||'This item')+' is removed from '+clientName(cl)+'.',run:async()=>{ arr.splice(+el.dataset.i,1); await patch('clients',id,{[el.dataset.arr]:arr,updatedAt:nowIso()}); }}; renderOverlay(); break; }
     case 'cl-delete': { const cl=S.clients[id]; S.modal={type:'confirm',title:'Remove '+clientName(cl)+' from Clients?',text:'Only the client page is removed. The lead record, emails and files stay.',run:async()=>{ S.clientOpen=null; await del('clients',id); }}; renderOverlay(); break; }
