@@ -728,7 +728,7 @@ const PUSH = {
   }
 };
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-push]'); if(!b) return; e.preventDefault(); const k=b.dataset.push; if(k==='on') PUSH.on(); else if(k==='off') PUSH.off(); else if(k==='test') PUSH.test(); });
-if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ const d=e.data||{}; if(d.open){ S.view='email'; S.open=d.open; if(location.hash!=='#email') history.replaceState(null,'',location.pathname+'#email'); render(); } });
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ const d=e.data||{}; if(d.hash&&/^#[\w=-]+$/.test(d.hash)&&location.hash!==d.hash){ location.hash=d.hash; return; } if(d.open){ S.view='email'; S.open=d.open; if(location.hash!=='#email') history.replaceState(null,'',location.pathname+'#email'); render(); } });
 async function boot(){
   openFromHash(); PUSH.refresh();
   if(!window.supabase){ $('.main').innerHTML='<div class="wrap"><div class="panel"><h2>Could not load</h2><p style="margin:0;color:var(--ink-2)">Check your connection and reload.</p></div></div>'; return; }
