@@ -902,14 +902,14 @@ document.addEventListener('focusout',()=>setTimeout(flush,250));
 document.addEventListener('input',e=>{ const f=e.target.closest && e.target.closest('form[data-track]'); if(f) f.dataset.dirty='1'; });
 
 /* ---------- render ---------- */
-const VIEWS=[['today','Today'],['clients','Clients'],['email','Email marketing'],['web','Websites'],['leads','Leads'],['outreach','Emails sent'],['files','Mockups & files'],['revenue','Revenue'],['tasks','Tasks'],['settings','Settings']];
-const NAV_GROUPS=[['Main menu',['today','clients','leads','tasks']],['Pipelines',['email','web']],['Outreach',['outreach','files']],['Business',['revenue','settings']]];
+const VIEWS=[['today','Today'],['clients','Clients'],['email','Email marketing'],['web','Websites'],['leads','Leads'],['outreach','Emails sent'],['traffic','Traffic'],['files','Mockups & files'],['revenue','Revenue'],['tasks','Tasks'],['settings','Settings']];
+const NAV_GROUPS=[['Main menu',['today','clients','leads','tasks']],['Pipelines',['email','web']],['Outreach',['outreach','traffic','files']],['Business',['revenue','settings']]];
 /* Phone tab bar: the four places Mel works from most, everything else under More. */
 const TABS=['today','clients','leads','email'];
 const TAB_LABEL={today:'Today',clients:'Clients',leads:'Leads',email:'Email',web:'Websites'};
 const ICON_MORE='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>';
 const _i=d=>`<svg viewBox="0 0 16 16" aria-hidden="true">${d}</svg>`;
-const ICONS={clients:_i('<path d="M2 6.5 8 2.5l6 4"/><rect x="3.5" y="6.5" width="9" height="7" rx="1.5"/><path d="M6.5 13.5v-3h3v3"/>'),today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
+const ICONS={traffic:_i('<path d="M1.5 12.5 5.5 8l3 2.5 6-7"/><path d="M10.5 3.5h4v4"/>'),clients:_i('<path d="M2 6.5 8 2.5l6 4"/><rect x="3.5" y="6.5" width="9" height="7" rx="1.5"/><path d="M6.5 13.5v-3h3v3"/>'),today:_i('<rect x="2.5" y="3" width="11" height="10.5" rx="2"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3"/>'),leads:_i('<circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/><path d="M11 3.2a2.3 2.3 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/>'),tasks:_i('<rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="m5.5 8 1.8 1.8L10.8 6"/>'),email:_i('<rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/>'),web:_i('<rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 6h13"/><circle cx="4" cy="4.3" r=".4"/>'),outreach:_i('<path d="M14 2 7 9M14 2l-4.5 12L7 9 2 6.5z"/>'),files:_i('<path d="M4 1.5h5l3.5 3.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1z"/><path d="M9 1.5V5h3.5"/>'),revenue:_i('<path d="M2 13.5h12"/><path d="M4 11V8M7.3 11V5M10.6 11V6.5M13.5 11V3"/>'),settings:_i('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')};
 function render(){
   CHIME.check();
   const keep={}; document.querySelectorAll('[data-keep]').forEach(el=>keep[el.dataset.keep]=[el.scrollTop,el.scrollLeft]);
@@ -937,7 +937,7 @@ function viewHtml(){
   let banner='';
   if(S.slow && !S.ready) banner='<div class="banner warn">Your store is slow to answer, so what you see may be out of date. It will refresh by itself.</div>';
   if(!canWrite) banner+='<div class="banner">You can view this CRM but not change it.</div>';
-  const v={today:viewToday,clients:viewClients,email:()=>viewBoard('email'),web:()=>viewBoard('web'),leads:viewLeads,outreach:viewOutreach,files:viewFiles,revenue:viewRevenue,tasks:viewTasks,settings:viewSettings}[S.view]||viewToday;
+  const v={today:viewToday,clients:viewClients,email:()=>viewBoard('email'),web:()=>viewBoard('web'),leads:viewLeads,outreach:viewOutreach,traffic:viewTraffic,files:viewFiles,revenue:viewRevenue,tasks:viewTasks,settings:viewSettings}[S.view]||viewToday;
   return banner+v();
 }
 
@@ -1142,7 +1142,11 @@ function viewToday(){
   <div class="grid g2">
     <div class="panel"><h2>Outreach, last 8 weeks <span class="legend"><span><i style="background:var(--ink)"></i>Sent</span><span><i style="background:var(--blue)"></i>Replies</span></span></h2>${weeklyBars()}</div>
     <div class="panel"><h2>Where deals are sitting <span class="seg"><button data-act="hpipe" data-p="email" class="${S.boardPipe==='email'?'on':''}">Email</button><button data-act="hpipe" data-p="web" class="${S.boardPipe==='web'?'on':''}">Web</button></span></h2>${healthHtml(S.boardPipe)}</div>
-  </div>
+  </div>`;
+}
+function viewTraffic(){
+  return `<div class="head"><div><h1>Traffic</h1><p>Your website and your prospects' showcases, kept separate. Switch between them below.</p></div>
+    <div class="actions"><button class="btn" data-act="site-refresh">Refresh</button></div></div>
   ${siteHtml()}`;
 }
 function siteHtml(){
@@ -1184,7 +1188,7 @@ function siteHtml(){
   return `<div class="panel">${head}
     <div class="site-kpis">${kpi('Visits','visits','showcase visits')}${kpi('Leads who looked','leads','different businesses')}${kpi('Reached the offer','offer','scrolled to your offer')}${kpi('Taps in emails','clicks','buttons tapped inside mockups')}</div>
     ${bars}
-    <div class="sub" style="color:var(--ink-3);font-size:13px">Who to call is in the Hot and Visited tabs above. Real prospect visits only: after each lead's email went out, never your own or test views.</div>
+    <div class="sub" style="color:var(--ink-3);font-size:13px">Who to call is in the Hot and Visited tabs on <a class="ilink" href="#today">Today</a>. Real prospect visits only: after each lead's email went out, never your own or test views.</div>
   </div>`;
 }
 function metric(l,v,s){ return `<div class="metric"><div class="label">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`; }
@@ -1680,7 +1684,7 @@ function modalHtml(){ return modalInner().replace('<h2>','<h2 class="mh"><span>'
 function modalInner(){
   const m=S.modal;
   if(m.type==='more'){ const counts={tasks:list(S.tasks).filter(t=>!t.done&&t.due&&t.due<=today()).length};
-    const items=['tasks','outreach','files','revenue','settings'];
+    const items=['tasks','outreach','traffic','files','revenue','settings'];
     return `<div class="scrim" data-act="close-modal" style="z-index:49"></div><div class="modal"><div class="box more-box"><h2>More</h2>
     <label class="more-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input id="more-q" type="search" placeholder="Search leads" value="${esc(S.q)}" enterkeyhint="search"></label>
     <nav class="more-list">${items.map(k=>`<a href="#${k}" data-act="close-modal" class="${S.view===k?'on':''}">${ICONS[k]||''}<span>${(VIEWS.find(v=>v[0]===k)||[])[1]}</span>${counts[k]?`<i class="badge">${counts[k]}</i>`:''}<b aria-hidden="true">›</b></a>`).join('')}</nav>
@@ -1736,6 +1740,7 @@ document.addEventListener('click', async e=>{
     case 'otab': S.outTab=el.dataset.k; render(); break;
     case 'tasktab': S.taskTab=el.dataset.k; render(); break;
     case 'hpipe': S.boardPipe=el.dataset.p; render(); break;
+    case 'site-refresh': el.disabled=true; await loadSite(); toast('Up to date'); break;
     case 'site-src': S.siteSrc=el.dataset.k; try{localStorage.setItem('tse-site-src',S.siteSrc);}catch(_){} render(); break;
     case 'site-mode': S.siteMode=el.dataset.k; try{localStorage.setItem('tse-site-mode',S.siteMode);}catch(_){} render(); break;
     case 'bmode': S.boardMode=el.dataset.m; render(); break;
