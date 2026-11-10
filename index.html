@@ -138,6 +138,12 @@ a{color:inherit}
 .site-axis{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--ink-3);margin-bottom:14px}
 .site-cols{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px}
 .site-cols h3{font-size:13px;font-weight:600;margin:0 0 6px}
+.site-axis .sw{display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ink);margin:0 4px 0 10px;vertical-align:-1px}.site-axis .sw.s{background:var(--blue)}
+.site-tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch}
+.site-tbl .sg{display:grid;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;min-width:max-content;align-items:center}
+.site-tbl .sg:last-child{border-bottom:0}
+.site-tbl .sh{font-size:11.5px;color:var(--ink-3);background:#FAF9F7;position:sticky;top:0}
+.site-tbl .r{text-align:right}.site-tbl .z{color:var(--line-2,#ccc)}
 .site-src{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
 @media (max-width:760px){.site-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.site-cols{grid-template-columns:1fr}}
 .bars .x{font-family:var(--f-mono);font-size:10px;color:var(--ink-3)}
@@ -852,6 +858,7 @@ async function loadAll(){
   loadSite();
 }
 /* Website stats for theserviceedit.com (10 Nov 2026): rpc site_stats, owner only. */
+try{ S.siteSrc=localStorage.getItem('tse-site-src')||'web'; S.siteMode=localStorage.getItem('tse-site-mode')||'week'; }catch(_){}
 async function loadSite(){ if(!sb) return; try{ const {data,error}=await sb.rpc('site_stats'); if(!error&&data){ S.site=data; render(); } }catch(_){} }
 function applyChange(t,p){
   const id=(p.new&&p.new.id)||(p.old&&p.old.id); if(!id) return;
@@ -1139,26 +1146,45 @@ function viewToday(){
   ${siteHtml()}`;
 }
 function siteHtml(){
-  const st=S.site;
-  const head=`<h2>Website <span class="label">theserviceedit.com · last 7 days</span><span class="legend"><span><i style="background:var(--ink)"></i>Visitors</span><span><i style="background:var(--blue)"></i>From showcases</span></span></h2>`;
-  if(!st) return `<div class="panel">${head}<div class="empty">Loading website stats…</div></div>`;
-  const cur=st.cur||{}, prev=st.prev, since=st.since||'';
+  const st=S.site, src=S.siteSrc||'web', mode=S.siteMode||'week';
+  const segs=`<span style="display:flex;gap:8px;flex-wrap:wrap"><span class="seg"><button data-act="site-src" data-k="web" class="${src==='web'?'on':''}">Website</button><button data-act="site-src" data-k="sc" class="${src==='sc'?'on':''}">Showcases</button></span><span class="seg"><button data-act="site-mode" data-k="week" class="${mode==='week'?'on':''}">7 days</button><button data-act="site-mode" data-k="day" class="${mode==='day'?'on':''}">Daily</button></span></span>`;
+  const head=`<h2 style="flex-wrap:wrap;gap:8px"><span>${src==='web'?'Website <span class="label">theserviceedit.com</span>':'Showcases <span class="label">prospects viewing their mockups</span>'}</span>${segs}</h2>`;
+  if(!st) return `<div class="panel">${head}<div class="empty">Loading…</div></div>`;
+  const D=src==='web'?st:(st.sc||{});
+  const cur=D.cur||{}, prev=D.prev, since=D.since||'';
   const firstWeek=!since||daysBetween(since,today())<13;
   const kpi=(l,k,hint)=>{ const v=+cur[k]||0, p=prev?(+prev[k]||0):null; let d;
     if(firstWeek||p===null) d=hint; else if(v===p) d='same as the week before'; else d=`<span class="${v>p?'up':'down'}">${v>p?'↑':'↓'} ${Math.abs(v-p)}</span> on the week before (${p})`;
     return `<div class="k"><div class="l">${esc(l)}</div><div class="v num">${v}</div><div class="d">${d}</div></div>`; };
-  const days=st.days||[]; const max=Math.max(1,...days.map(x=>x.v));
-  const bars=`<div class="site-days">${days.map(x=>{ const off=since&&x.d<since; return `<div class="c${off?' off':''}" title="${fmtDay(x.d)}: ${off?'not tracked yet':x.v+' visitor'+(x.v===1?'':'s')+', '+x.s+' from showcases'}"><div class="b s" style="height:${off?0:x.s/max*100}%;${x.s?'':'display:none'}"></div><div class="b" style="height:${off?100:Math.max(0,(x.v-x.s))/max*100}%"></div></div>`; }).join('')}</div>
-    <div class="site-axis"><span>${days[0]?fmtDay(days[0].d):''}</span><span>${since?'Tracking since '+fmtDay(since):''}</span><span>Today</span></div>`;
-  const pros=(st.prospects||[]).map(p=>{ const c=S.companies[p.company]||{}; const pages=(p.pages||[]).map(x=>x==='/'?'home':x.replace(/^\//,'')).join(', ');
-    return `<div class="row click" data-act="open" data-id="${esc(p.company)}"><div style="min-width:0"><div class="t">${esc(c.name||p.company)}</div><div class="sub">${esc(pages)}${p.secs?' · '+p.secs+'s+':''}</div></div><span style="display:flex;gap:6px;align-items:center">${p.enquired?'<span class="pill p-good">Enquired</span>':''}<span class="pill p-plain">${fmtWhen(p.at)}</span></span></div>`; }).join('');
-  const src=(st.sources||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.s)}</span><b class="num">${x.n}</b></div>`).join('')||'<div class="empty">No visits yet.</div>';
-  const pg=(st.pages||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.p==='/'?'Home':x.p)}</span><b class="num">${x.n}</b></div>`).join('');
+  const all=D.days||[], days=all.slice(-14), off=d=>since&&d<since;
+  const tblDays=all.filter(x=>!since||x.d>=since).slice().reverse();
+  const table=cols=>{ const tpl=`grid-template-columns:minmax(92px,1.3fr) repeat(${cols.length},minmax(64px,1fr))`;
+    const mx={}; cols.forEach(c=>{ const vals=tblDays.map(x=>+x[c[0]]||0), m=Math.max(1,...vals); mx[c[0]]=vals.filter(v=>v===m).length===1?m:-1; });
+    return `<div class="site-tbl"><div class="sg sh" style="${tpl}"><span>Day</span>${cols.map(c=>`<span class="r">${c[1]}</span>`).join('')}</div>${tblDays.map(x=>`<div class="sg" style="${tpl}"><span>${x.d===today()?'<b>Today</b>':fmtDay(x.d)} <span class="muted">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(x.d+'T12:00:00').getDay()]}</span></span>${cols.map(c=>{const v=+x[c[0]]||0;return `<span class="r num${v?'':' z'}"${v&&v===mx[c[0]]&&tblDays.length>1?' style="font-weight:700"':''}>${v}</span>`;}).join('')}</div>`).join('')}</div>`; };
+  if(src==='web'){
+    if(mode==='day') return `<div class="panel">${head}${table([['v','Visitors'],['pv','Pages viewed'],['eng','Stayed 30s+'],['s','Came via a showcase'],['c','Button taps'],['e','Enquiries']])}<div class="site-axis" style="margin:8px 0 0"><span>${since?'Tracking since '+fmtDay(since):''}</span></div></div>`;
+    const max=Math.max(1,...days.map(x=>x.v));
+    const bars=`<div class="site-days">${days.map(x=>{ const o=off(x.d); return `<div class="c${o?' off':''}" title="${fmtDay(x.d)}: ${o?'not tracked yet':x.v+' visitor'+(x.v===1?'':'s')+', '+x.s+' via a showcase'}"><div class="b s" style="height:${o?0:x.s/max*100}%;${x.s?'':'display:none'}"></div><div class="b" style="height:${o?100:Math.max(0,(x.v-x.s))/max*100}%"></div></div>`; }).join('')}</div>
+    <div class="site-axis"><span>${days[0]?fmtDay(days[0].d):''}</span><span><i class="sw"></i>Visitors <i class="sw s"></i>Via a showcase</span><span>Today</span></div>`;
+    const pros=(st.prospects||[]).map(p=>{ const c=S.companies[p.company]||{}; const pages=(p.pages||[]).map(x=>x==='/'?'home':x.replace(/^\//,'')).join(', ');
+      return `<div class="row click" data-act="open" data-id="${esc(p.company)}"><div style="min-width:0"><div class="t">${esc(c.name||p.company)}</div><div class="sub">${esc(pages)}${p.secs?' · '+p.secs+'s+':''}</div></div><span style="display:flex;gap:6px;align-items:center">${p.enquired?'<span class="pill p-good">Enquired</span>':''}<span class="pill p-plain">${fmtWhen(p.at)}</span></span></div>`; }).join('');
+    const srcs=(st.sources||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.s)}</span><b class="num">${x.n}</b></div>`).join('')||'<div class="empty">No visits yet.</div>';
+    const pg=(st.pages||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.p==='/'?'Home':x.p)}</span><b class="num">${x.n}</b></div>`).join('');
+    return `<div class="panel">${head}
+      <div class="site-kpis">${kpi('Visitors','visitors','first week of tracking')}${kpi('Came via a showcase','from_showcases','prospects who clicked through')}${kpi('Enquiries','enquiries','contact form sends')}${kpi('Button taps','clicks','book, email and call taps')}</div>
+      ${bars}
+      <div class="site-cols"><div><h3>Prospects who checked you out <span class="label">30 days</span></h3>${pros||'<div class="empty">None yet. When a lead clicks theserviceedit.com on their showcase, they show up here by name.</div>'}</div>
+      <div><h3>Where visitors came from</h3>${srcs}${pg?`<h3 style="margin-top:14px">Top pages</h3>${pg}`:''}</div></div>
+    </div>`;
+  }
+  if(mode==='day') return `<div class="panel">${head}${table([['visits','Visits'],['leads','Leads who looked'],['engaged','Stayed 30s+'],['offer','Reached the offer'],['clicks','Taps in emails']])}<div class="site-axis" style="margin:8px 0 0"><span>Real prospect visits only: after each lead's email went out, never your own or test views.</span></div></div>`;
+  const max=Math.max(1,...days.map(x=>x.visits));
+  const bars=`<div class="site-days">${days.map(x=>{ const o=off(x.d); return `<div class="c${o?' off':''}" title="${fmtDay(x.d)}: ${o?'no showcases sent yet':x.visits+' visit'+(x.visits===1?'':'s')+' from '+x.leads+' lead'+(x.leads===1?'':'s')}"><div class="b" style="height:${o?100:x.visits/max*100}%"></div></div>`; }).join('')}</div>
+  <div class="site-axis"><span>${days[0]?fmtDay(days[0].d):''}</span><span><i class="sw"></i>Showcase visits</span><span>Today</span></div>`;
   return `<div class="panel">${head}
-    <div class="site-kpis">${kpi('Visitors','visitors','first week of tracking')}${kpi('From your showcases','from_showcases','prospects who clicked through')}${kpi('Enquiries','enquiries','contact form sends')}${kpi('Button taps','clicks','book, email and call taps')}</div>
+    <div class="site-kpis">${kpi('Visits','visits','showcase visits')}${kpi('Leads who looked','leads','different businesses')}${kpi('Reached the offer','offer','scrolled to your offer')}${kpi('Taps in emails','clicks','buttons tapped inside mockups')}</div>
     ${bars}
-    <div class="site-cols"><div><h3>Prospects who checked you out <span class="label">30 days</span></h3>${pros||'<div class="empty">None yet. When a lead clicks theserviceedit.com on their showcase, they show up here by name.</div>'}</div>
-    <div><h3>Where visitors came from</h3>${src}${pg?`<h3 style="margin-top:14px">Top pages</h3>${pg}`:''}</div></div>
+    <div class="sub" style="color:var(--ink-3);font-size:13px">Who to call is in the Hot and Visited tabs above. Real prospect visits only: after each lead's email went out, never your own or test views.</div>
   </div>`;
 }
 function metric(l,v,s){ return `<div class="metric"><div class="label">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`; }
@@ -1710,6 +1736,8 @@ document.addEventListener('click', async e=>{
     case 'otab': S.outTab=el.dataset.k; render(); break;
     case 'tasktab': S.taskTab=el.dataset.k; render(); break;
     case 'hpipe': S.boardPipe=el.dataset.p; render(); break;
+    case 'site-src': S.siteSrc=el.dataset.k; try{localStorage.setItem('tse-site-src',S.siteSrc);}catch(_){} render(); break;
+    case 'site-mode': S.siteMode=el.dataset.k; try{localStorage.setItem('tse-site-mode',S.siteMode);}catch(_){} render(); break;
     case 'bmode': S.boardMode=el.dataset.m; render(); break;
     case 'toggle-empty': S.showEmpty=!S.showEmpty; render(); break;
     case 'fkind': S.fileKind=el.dataset.k; render(); break;
