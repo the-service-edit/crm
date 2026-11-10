@@ -1099,6 +1099,8 @@ function viewToday(){
   const visited=list(S.opps).filter(o=>isActive(o)&&!onHold(o)&&['pre','out'].includes(stageRole(o.stage))&&isVisited(o)).map(o=>({o,f:followedUp(o)}))
     .sort((a,b)=>(!!a.f-!!b.f)||(b.o.track.lastSeenAt||'').localeCompare(a.o.track.lastSeenAt||''));
   const visitedTodo=visited.filter(x=>!x.f).length;
+  const scanners=list(S.opps).filter(o=>isActive(o)&&!onHold(o)&&['pre','out'].includes(stageRole(o.stage))&&isScannerOnly(o))
+    .sort((a,b)=>(b.track.scannerLastAt||'').localeCompare(a.track.scannerLastAt||''));
   const nba=[];
   const hotTodo=hot.filter(o=>!followedUp(o)).length;
   if(hotTodo) nba.push(['hot',`<b>${hotTodo}</b> ${hotTodo===1?'lead has':'leads have'} been on their showcase in the last 48 hours and not been followed up: call while it's warm`]);
@@ -1111,8 +1113,8 @@ function viewToday(){
   if(staleProps.length) nba.push(['props',`<b>${staleProps.length}</b> proposal${staleProps.length===1?' has':'s have'} sat 5+ days without movement`]);
   if(f.none.length) nba.push(['none',`<b>${f.none.length}</b> live deal${f.none.length===1?' has':'s have'} no next step booked`]);
   const greet = new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening';
-  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps, hot, visited};
-  const tabNames=[['hot','Hot'],['visited','Visited'],['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
+  const tabs={due:[...f.overdue,...f.due], upcoming:f.upcoming, waiting:f.waiting, none:f.none, replies:unans, drafts, calls, nudges, props:staleProps, hot, visited, scanners};
+  const tabNames=[['hot','Hot'],['visited','Visited'],['scanners','Scanners'],['due','Due & overdue'],['replies','Replies'],['waiting','Waiting'],['upcoming','Next 7 days'],['none','No next step'],['drafts','Drafts to send']];
   const cur=tabs[S.todayTab]||tabs.due;
   return `<div class="head"><div><h1>${greet}, Mel.</h1><p>${fmtDay(today())} · ${dueCount()?`<span class="hl">${dueCount()} follow-up${dueCount()===1?'':'s'} due</span>`:'Nothing overdue'} · ${tasksToday.length} task${tasksToday.length===1?'':'s'} today</p></div>
     <div class="actions"><button class="btn" data-act="add-task">+ Task</button><button class="btn primary" data-act="add-lead">+ New lead</button></div></div>
@@ -1199,6 +1201,7 @@ function todayRows(tab,items){
     if(tab==='visited'){ const {o,f}=it; const c=S.companies[o.companyId]||{};
       const pill = f ? `<span class="pill p-good">Followed up ${fmtDay(f.at)}</span>` : o.callAt ? (()=>{const k=fmtCall(o.callAt,o.callTz); return new Date(o.callAt)<=new Date()?'<span class="pill p-bad">Call now</span>':`<span class="pill p-warn">Call ${esc(k.day)}</span>`;})() : '<span class="pill p-bad">To follow up</span>';
       return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)} ${hotPill(o)}</div><div class="sub">${f?esc(f.txt.charAt(0).toUpperCase()+f.txt.slice(1))+(o.nextFollowUp?' · next '+esc(fmtRel(o.nextFollowUp).toLowerCase()):''):'Not followed up since their visit'} · ${esc(trkLine(o))}${c.phone?' · '+phoneLink(c,'tel'):''}</div></div>${pill}</div>`; }
+    if(tab==='scanners'){ const o=it; const c=S.companies[o.companyId]||{}; return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(c.name||'?')} ${pipePill(o.pipeline)}</div><div class="sub">Link checked by their email security scanner ${esc(whenTxt(o.track.scannerLastAt))}, no person has looked yet · ${esc(o.nextAction||o.stage)}${c.phone?' · '+phoneLink(c,'tel'):''}</div></div><span class="pill p-plain">Scanner only</span></div>`; }
     if(tab==='drafts'){ const a=it; return `<div class="row click" data-act="open" data-id="${a.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(a.companyId))}</div><div class="sub">Draft · ${esc(a.subject||'(no subject)')}</div></div><span class="pill p-plain">${fmtDay(a.at)}</span></div>`; }
     if(tab==='replies'){ const {c,i}=it; return `<div class="row click" data-act="open" data-id="${c._id}"><div style="min-width:0"><div class="t">${esc(c.name)}</div><div class="sub">Replied ${fmtDay(i.at)} · ${esc(i.subject||i.body||'')}</div></div><span class="pill ${i.outcome==='interested'?'p-good':'p-warn'}">${esc(i.outcome||'Reply')}</span></div>`; }
     if(tab==='waiting'||tab==='nudges'||tab==='calls'){ const {o,last}=it; const d=ageDays(last.at); return `<div class="row click" data-act="open" data-id="${o.companyId}"><div style="min-width:0"><div class="t">${esc(companyName(o.companyId))} ${pipePill(o.pipeline)}</div><div class="sub">Sent ${fmtDay(last.at)} · ${esc(last.subject||'')}</div></div><span class="pill ${d>=setting('callDays')?'p-bad':d>=setting('nudgeDays')?'p-warn':'p-plain'}">${d}d · ${d>=setting('callDays')?'Call':d>=setting('nudgeDays')?'Nudge':'Wait'}</span></div>`; }
@@ -1225,6 +1228,8 @@ const ICON_NEXT='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5
 /* Followed up since their showcase visit: any call, meeting or sent email logged after the first visit (or the tracked send). */
 const ICON_DONE='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5"/></svg>';
 const isVisited = o => !!(o&&o.track&&((+o.track.visits||0)+(+o.track.clicks||0))>0);
+/* Scanner-only (10 Nov 2026): the only showcase hits after the send were email security scanners (0s, no scroll, no click). Not a visit: nudge on the normal schedule. */
+const isScannerOnly = o => !!(o&&o.track&&o.track.scannerOnly&&!isVisited(o));
 function followedUp(o){ if(!o) return null;
   const sinceIso = o.firstVisitAt || (o.callAt? new Date(Date.parse(o.callAt)-24*3600e3).toISOString() : (o.track&&o.track.sentAt)||'');
   const since=Date.parse(sinceIso); if(!since) return null;
@@ -1265,6 +1270,7 @@ function trkLine(o){ const t=o&&o.track; if(!t||!t.sentAt) return ''; const b=[]
   if(t.visits) b.push(t.visits+' visit'+(t.visits===1?'':'s')+(t.engagedSecs?' · '+secsTxt(t.engagedSecs):''));
   if(t.clicks) b.push(t.clicks+' click'+(t.clicks===1?'':'s'));
   if(t.opens) b.push('opened'+(t.opens>1?' ×'+t.opens:''));
+  if(!t.visits&&!t.clicks&&t.scannerVisits) b.push('scanner check only');
   return b.length?b.join(' · '):'Sent, no activity yet'; }
 function hotPill(o){ return isHot(o)?`<span class="pill p-good" title="${esc(o.track.hotReason||'')}">Hot</span>`:''; }
 /* Proposal page engagement (5 Nov 2026): the rollup splits proposal-page sessions out into track.proposal. Shown once the lead has a Proposal file or a proposal visit. */
@@ -1287,11 +1293,12 @@ function trkHtml(o){ if(!o.trackToken) return ''; const t=o.track||{};
       ${t.lastSeenAt?`Last on the showcase: <b>${esc(whenTxt(t.lastSeenAt))}</b><br>`:''}
       ${reads.length?`Scrolled through: ${reads.map(esc).join(', ')}<br>`:''}
       ${t.readOffer?'Reached the offer section<br>':''}
+      ${t.scannerVisits?`<span style="color:var(--ink-3)">Security scanner checks (not counted as visits): ${t.scannerVisits}${t.scannerLastAt?', last '+esc(whenTxt(t.scannerLastAt)):''}</span><br>`:''}
       ${clicks.length?`Clicked: ${clicks.map(c=>esc(String(c).replace('|',' → '))).join('; ')}<br>`:''}
       ${t.lastOpenAt?`Last open: ${esc(whenTxt(t.lastOpenAt))} <button class="btn sm ghost" style="padding:2px 8px;font-size:12px;margin-left:4px" data-act="not-me" data-id="${esc(o._id)}" title="Clears this open if it was you viewing the email in Gmail">That was me</button><br>`:''}
     </div>
     ${propHtml(o,box)}
-    <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">*Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images. Visits and clicks are the real signal.</div>
+    <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">*Opens are approximate: iPhone Mail can open emails automatically and Outlook often blocks images. Visits and clicks are the real signal. A visit only counts once someone stays 15+ seconds, scrolls an email or clicks; quick link checks by email security scanners are listed separately.</div>
   </div>`; }
 function phoneLink(c,cls){ return c.phone?`<a class="${cls||''}" href="${telHref(c.phone)}" data-stop>${esc(c.phone)}</a>`:''; }
 /* Stage colours: sand = preparing, gold = ready to send, blues = waiting on them, greens = they engaged, terracotta = money on the table */
