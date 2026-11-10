@@ -124,6 +124,22 @@ a{color:inherit}
 .bars .stack{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px}
 .bars .b{width:42%;max-width:18px;border-radius:5px 5px 2px 2px;background:var(--ink);min-height:2px}
 .bars .b.r{background:var(--blue)}
+.site-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:2px 0 14px}
+.site-kpis .k{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.site-kpis .l{font-size:12px;color:var(--ink-3)}
+.site-kpis .v{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:2px}
+.site-kpis .d{font-size:12px;margin-top:2px;color:var(--ink-3)}
+.site-kpis .up{color:#2f7a3a}.site-kpis .down{color:#b4452f}
+.site-days{display:flex;align-items:flex-end;gap:4px;height:70px;margin-bottom:4px}
+.site-days .c{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:2px;min-width:0}
+.site-days .b{width:70%;max-width:16px;border-radius:4px 4px 1px 1px;background:var(--ink);min-height:2px}
+.site-days .b.s{background:var(--blue)}
+.site-days .c.off .b{background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px);min-height:100%;opacity:.7}
+.site-axis{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--ink-3);margin-bottom:14px}
+.site-cols{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px}
+.site-cols h3{font-size:13px;font-weight:600;margin:0 0 6px}
+.site-src{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+@media (max-width:760px){.site-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.site-cols{grid-template-columns:1fr}}
 .bars .x{font-family:var(--f-mono);font-size:10px;color:var(--ink-3)}
 .legend{display:flex;gap:14px;color:var(--ink-3);font-size:12px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
@@ -833,7 +849,10 @@ async function loadAll(){
     S.ready=true; S.offline=false;
   }catch(e){ S.offline=true; }
   render();
+  loadSite();
 }
+/* Website stats for theserviceedit.com (10 Nov 2026): rpc site_stats, owner only. */
+async function loadSite(){ if(!sb) return; try{ const {data,error}=await sb.rpc('site_stats'); if(!error&&data){ S.site=data; render(); } }catch(_){} }
 function applyChange(t,p){
   const id=(p.new&&p.new.id)||(p.old&&p.old.id); if(!id) return;
   if(t==='crm_settings'){ if(p.eventType==='DELETE') delete S.extra[id]; else S.extra[id]=p.new.data; S.settings=S.extra.main||null; schedule(); return; }
@@ -1116,6 +1135,30 @@ function viewToday(){
   <div class="grid g2">
     <div class="panel"><h2>Outreach, last 8 weeks <span class="legend"><span><i style="background:var(--ink)"></i>Sent</span><span><i style="background:var(--blue)"></i>Replies</span></span></h2>${weeklyBars()}</div>
     <div class="panel"><h2>Where deals are sitting <span class="seg"><button data-act="hpipe" data-p="email" class="${S.boardPipe==='email'?'on':''}">Email</button><button data-act="hpipe" data-p="web" class="${S.boardPipe==='web'?'on':''}">Web</button></span></h2>${healthHtml(S.boardPipe)}</div>
+  </div>
+  ${siteHtml()}`;
+}
+function siteHtml(){
+  const st=S.site;
+  const head=`<h2>Website <span class="label">theserviceedit.com · last 7 days</span><span class="legend"><span><i style="background:var(--ink)"></i>Visitors</span><span><i style="background:var(--blue)"></i>From showcases</span></span></h2>`;
+  if(!st) return `<div class="panel">${head}<div class="empty">Loading website stats…</div></div>`;
+  const cur=st.cur||{}, prev=st.prev, since=st.since||'';
+  const firstWeek=!since||daysBetween(since,today())<13;
+  const kpi=(l,k,hint)=>{ const v=+cur[k]||0, p=prev?(+prev[k]||0):null; let d;
+    if(firstWeek||p===null) d=hint; else if(v===p) d='same as the week before'; else d=`<span class="${v>p?'up':'down'}">${v>p?'↑':'↓'} ${Math.abs(v-p)}</span> on the week before (${p})`;
+    return `<div class="k"><div class="l">${esc(l)}</div><div class="v num">${v}</div><div class="d">${d}</div></div>`; };
+  const days=st.days||[]; const max=Math.max(1,...days.map(x=>x.v));
+  const bars=`<div class="site-days">${days.map(x=>{ const off=since&&x.d<since; return `<div class="c${off?' off':''}" title="${fmtDay(x.d)}: ${off?'not tracked yet':x.v+' visitor'+(x.v===1?'':'s')+', '+x.s+' from showcases'}"><div class="b s" style="height:${off?0:x.s/max*100}%;${x.s?'':'display:none'}"></div><div class="b" style="height:${off?100:Math.max(0,(x.v-x.s))/max*100}%"></div></div>`; }).join('')}</div>
+    <div class="site-axis"><span>${days[0]?fmtDay(days[0].d):''}</span><span>${since?'Tracking since '+fmtDay(since):''}</span><span>Today</span></div>`;
+  const pros=(st.prospects||[]).map(p=>{ const c=S.companies[p.company]||{}; const pages=(p.pages||[]).map(x=>x==='/'?'home':x.replace(/^\//,'')).join(', ');
+    return `<div class="row click" data-act="open" data-id="${esc(p.company)}"><div style="min-width:0"><div class="t">${esc(c.name||p.company)}</div><div class="sub">${esc(pages)}${p.secs?' · '+p.secs+'s+':''}</div></div><span style="display:flex;gap:6px;align-items:center">${p.enquired?'<span class="pill p-good">Enquired</span>':''}<span class="pill p-plain">${fmtWhen(p.at)}</span></span></div>`; }).join('');
+  const src=(st.sources||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.s)}</span><b class="num">${x.n}</b></div>`).join('')||'<div class="empty">No visits yet.</div>';
+  const pg=(st.pages||[]).map(x=>`<div class="site-src"><span class="clip">${esc(x.p==='/'?'Home':x.p)}</span><b class="num">${x.n}</b></div>`).join('');
+  return `<div class="panel">${head}
+    <div class="site-kpis">${kpi('Visitors','visitors','first week of tracking')}${kpi('From your showcases','from_showcases','prospects who clicked through')}${kpi('Enquiries','enquiries','contact form sends')}${kpi('Button taps','clicks','book, email and call taps')}</div>
+    ${bars}
+    <div class="site-cols"><div><h3>Prospects who checked you out <span class="label">30 days</span></h3>${pros||'<div class="empty">None yet. When a lead clicks theserviceedit.com on their showcase, they show up here by name.</div>'}</div>
+    <div><h3>Where visitors came from</h3>${src}${pg?`<h3 style="margin-top:14px">Top pages</h3>${pg}`:''}</div></div>
   </div>`;
 }
 function metric(l,v,s){ return `<div class="metric"><div class="label">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`; }
